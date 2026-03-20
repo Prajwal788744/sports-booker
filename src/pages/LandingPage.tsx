@@ -1,13 +1,39 @@
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { SplineScene } from "@/components/ui/splite";
 import { Card } from "@/components/ui/card";
 import { Spotlight } from "@/components/ui/spotlight";
 import { Button } from "@/components/ui/button";
 import { GlowingEffect } from "@/components/ui/glowing-effect";
+import { SportsScene3D } from "@/components/SportsScene3D";
 import { Trophy, ArrowRight, Clock, Users, CalendarCheck, Zap, Shield, Star } from "lucide-react";
 
 export default function LandingPage() {
   const navigate = useNavigate();
+  const heroRef = useRef<HTMLDivElement>(null);
+  const [mouse, setMouse] = useState({ x: 0, y: 0 });
+  const [iconsVisible, setIconsVisible] = useState(false);
+
+  /* Show 3D models after a short delay */
+  useEffect(() => {
+    const timer = setTimeout(() => setIconsVisible(true), 800);
+    return () => clearTimeout(timer);
+  }, []);
+
+  /* Mouse tracking for parallax */
+  const handleMouseMove = useCallback((e: MouseEvent) => {
+    if (!heroRef.current) return;
+    const rect = heroRef.current.getBoundingClientRect();
+    const x = ((e.clientX - rect.left) / rect.width - 0.5) * 2;
+    const y = ((e.clientY - rect.top) / rect.height - 0.5) * 2;
+    setMouse({ x, y });
+  }, []);
+
+  useEffect(() => {
+    const el = heroRef.current;
+    if (!el) return;
+    el.addEventListener("mousemove", handleMouseMove, { passive: true });
+    return () => el.removeEventListener("mousemove", handleMouseMove);
+  }, [handleMouseMove]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -45,13 +71,30 @@ export default function LandingPage() {
 
       {/* ── Hero Section with Spline 3D ── */}
       <section className="relative overflow-hidden">
-        <Card className="w-full min-h-[600px] md:min-h-[700px] bg-black/[0.96] relative overflow-hidden rounded-none border-0">
+        <Card ref={heroRef} className="w-full min-h-[600px] md:min-h-[700px] bg-black/[0.96] relative overflow-hidden rounded-none border-0">
+          {/* Turf background — subtly visible */}
+          <div
+            className="absolute inset-0 z-0 opacity-[0.06]"
+            style={{
+              backgroundImage: `url('https://images.unsplash.com/photo-1556056504-5c7696c4c28d?w=1920&q=80&fit=crop')`,
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+            }}
+          />
+          <div className="absolute inset-0 z-0 bg-gradient-to-b from-black/80 via-black/60 to-black/90" />
+
+          {/* Sports-colored glow reflections */}
+          <div className="absolute top-1/4 right-1/4 w-[500px] h-[500px] rounded-full bg-amber-500/8 blur-[120px] animate-pulse z-0" />
+          <div className="absolute bottom-1/3 right-1/3 w-[400px] h-[400px] rounded-full bg-emerald-500/10 blur-[100px] animate-pulse z-0" style={{ animationDelay: '1s' }} />
+          <div className="absolute top-1/2 right-[15%] w-[350px] h-[350px] rounded-full bg-blue-500/8 blur-[100px] animate-pulse z-0" style={{ animationDelay: '2s' }} />
+          <div className="absolute bottom-[20%] left-[55%] w-[300px] h-[300px] rounded-full bg-red-500/6 blur-[80px] animate-pulse z-0" style={{ animationDelay: '1.5s' }} />
+
           <Spotlight
             className="-top-40 left-0 md:left-60 md:-top-20"
             fill="white"
           />
 
-          <div className="flex flex-col md:flex-row h-full min-h-[600px] md:min-h-[700px]">
+          <div className="flex flex-col md:flex-row h-full min-h-[600px] md:min-h-[700px] relative z-10">
             {/* Left content */}
             <div className="flex-1 p-8 md:p-16 lg:p-20 relative z-10 flex flex-col justify-center">
               <div className="inline-flex items-center gap-2 rounded-full bg-emerald-500/10 border border-emerald-500/20 px-4 py-1.5 mb-6 w-fit animate-fade-up">
@@ -107,12 +150,33 @@ export default function LandingPage() {
               </div>
             </div>
 
-            {/* Right — Spline 3D Scene */}
+            {/* Right — 3D Sports Models Scene */}
             <div className="flex-1 relative min-h-[300px] md:min-h-0">
-              <SplineScene
-                scene="https://prod.spline.design/kZDDjO5HuC9GJUM2/scene.splinecode"
-                className="w-full h-full"
-              />
+              <div
+                className="w-full h-full transition-all duration-700 ease-out"
+                style={{
+                  opacity: iconsVisible ? 1 : 0,
+                  transform: `scale(${iconsVisible ? 1 : 0.9})`,
+                }}
+              >
+                <SportsScene3D className="w-full h-full" mouse={mouse} />
+              </div>
+
+              {/* "Multi-Sport Booking Platform" badge */}
+              <div
+                className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20 transition-all duration-700"
+                style={{
+                  opacity: iconsVisible ? 1 : 0,
+                  transform: `translateX(-50%) translateY(${iconsVisible ? 0 : 12}px)`,
+                  transitionDelay: '0.5s',
+                }}
+              >
+                <div className="inline-flex items-center gap-2.5 rounded-full bg-white/[0.07] border border-white/[0.12] backdrop-blur-md px-5 py-2.5 shadow-[0_0_30px_rgba(16,185,129,0.15)]">
+                  <Trophy className="h-4 w-4 text-amber-400" />
+                  <span className="text-xs font-bold text-white/80 uppercase tracking-[0.15em]">Multi-Sport Booking Platform</span>
+                  <span className="flex h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+                </div>
+              </div>
             </div>
           </div>
         </Card>
