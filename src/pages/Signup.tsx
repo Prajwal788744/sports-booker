@@ -38,6 +38,22 @@ export default function Signup() {
       toast.error("Password must be at least 6 characters");
       return;
     }
+    if (!/[a-z]/.test(password)) {
+      toast.error("Password must contain at least one lowercase letter");
+      return;
+    }
+    if (!/[A-Z]/.test(password)) {
+      toast.error("Password must contain at least one uppercase letter");
+      return;
+    }
+    if (!/[0-9]/.test(password)) {
+      toast.error("Password must contain at least one digit");
+      return;
+    }
+    if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) {
+      toast.error("Password must contain at least one special character");
+      return;
+    }
 
     setIsSubmitting(true);
     const { error } = await signUp(email, password, { name, reg_no: regNo });
@@ -61,7 +77,7 @@ export default function Signup() {
   return (
     <div className="flex w-full flex-col min-h-screen bg-black relative">
       {/* Canvas Background */}
-      <div className="absolute inset-0 z-0">
+      <div className="absolute inset-0 z-0 pointer-events-none">
         {initialCanvasVisible && (
           <div className="absolute inset-0">
             <CanvasRevealEffect
@@ -155,7 +171,7 @@ export default function Signup() {
                     {/* Registration Number */}
                     <input
                       type="text"
-                      placeholder="Registration Number (e.g. GCU2024CS001)"
+                      placeholder="Registration Number"
                       value={regNo}
                       onChange={(e) => setRegNo(e.target.value)}
                       className="w-full backdrop-blur-sm bg-white/5 text-white border border-white/10 rounded-full py-3 px-5 focus:outline-none focus:border-emerald-500/50 transition-colors text-center placeholder:text-white/30"
@@ -166,7 +182,7 @@ export default function Signup() {
                     <div className="relative">
                       <input
                         type={showPassword ? "text" : "password"}
-                        placeholder="Password (min 6 characters)"
+                        placeholder="Password"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         className="w-full backdrop-blur-sm bg-white/5 text-white border border-white/10 rounded-full py-3 px-5 pr-12 focus:outline-none focus:border-emerald-500/50 transition-colors text-center placeholder:text-white/30"
