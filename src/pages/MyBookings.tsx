@@ -54,8 +54,9 @@ function generateAllSlots(): FreeSlot[] {
     for (const m of [0, 30]) {
       if (h === 17 && m === 30) break;
       const startH = h, startM = m;
-      const endH = m === 30 ? h + 1 : h + 1;
-      const endM = m === 30 ? 0 : 0;
+      const endH = startH + 1;
+      const endM = startM; // 1 hour later: 7:00→8:00, 7:30→8:30
+      if (endH > 18 || (endH === 18 && endM > 0)) continue;
       const start = `${String(startH).padStart(2, "0")}:${String(startM).padStart(2, "0")}`;
       const end = `${String(endH).padStart(2, "0")}:${String(endM).padStart(2, "0")}`;
       slots.push({ start, end, label: `${formatTime(start)} – ${formatTime(end)}` });
