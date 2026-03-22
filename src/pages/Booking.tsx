@@ -1,250 +1,241 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { StudentNavbar } from "@/components/StudentNavbar";
-import { PostponeModal } from "@/components/PostponeModal";
+import { supabase } from "@/lib/supabase";
+import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { GlowingEffect } from "@/components/ui/glowing-effect";
-import { slots as initialSlots, sports, type Slot, type Booking } from "@/data/mockData";
-import { ArrowLeft, Clock, CalendarCheck, X, ArrowRightLeft } from "lucide-react";
+import { ArrowLeft, Clock, CalendarCheck, Trophy, ChevronLeft, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
+import { format, addDays } from "date-fns";
 
-let bookingCounter = 0;
+const sportNames: Record<number, { name: string; icon: string }> = {
+  1: { name: "Cricket Turf", icon: "🏏" },
+  2: { name: "Futsal", icon: "⚽" },
+  3: { name: "Badminton", icon: "🏸" },
+};
+
+// Generate time slots from 7:00 AM to 5:30 PM (last slot ends at 6:30 PM max)
+function generateTimeSlots() {
+  const slots: { start: string; end: string; label: string }[] = [];
+  for (let h = 7; h <= 17; h++) {
+    for (const m of [0, 30]) {
+      if (h === 17 && m === 30) break; // last slot at 17:00
+      const startH = h;
+      const startM = m;
+      const endH = m === 30 ? h + 1 : h + 1;
+      const endM = m === 30 ? 0 : 0;
+      const start = `${String(startH).padStart(2, "0")}:${String(startM).padStart(2, "0")}`;
+      const end = `${String(endH).padStart(2, "0")}:${String(endM).padStart(2, "0")}`;
+      const formatTime = (hh: number, mm: number) => {
+        const ampm = hh >= 12 ? "PM" : "AM";
+        const h12 = hh > 12 ? hh - 12 : hh === 0 ? 12 : hh;
+        return `${h12}:${String(mm).padStart(2, "0")} ${ampm}`;
+      };
+      slots.push({
+        start,
+        end,
+        label: `${formatTime(startH, startM)} – ${formatTime(endH, endM)}`,
+      });
+    }
+  }
+  return slots;
+}
+
+const TIME_SLOTS = generateTimeSlots();
+
+interface ExistingBooking {
+  start_time: string;
+  end_time: string;
+}
 
 export default function Booking() {
   const { sportId } = useParams();
   const navigate = useNavigate();
-  const sport = sports.find((s) => s.id === sportId);
+  const { user } = useAuth();
 
-  // ── Core state ──
-  const [allSlots, setAllSlots] = useState<Slot[]>(initialSlots);
-  const [bookings, setBookings] = useState<Booking[]>([]);
-  const [postponeBookingId, setPostponeBookingId] = useState<string | null>(null);
+  const numSportId = Number(sportId);
+  const sport = sportNames[numSportId];
 
-  const sportSlots = allSlots.filter((s) => s.sportId === sportId);
+  const [selectedDate, setSelectedDate] = useState(() => {
+    const today = new Date();
+    return format(today, "yyyy-MM-dd");
+  });
+  const [bookedSlots, setBookedSlots] = useState<ExistingBooking[]>([]);
+  const [bookingInProgress, setBookingInProgress] = useState<string | null>(null);
 
-  // ── handleBook ──
-  const handleBook = (slotId: string) => {
-    const slot = allSlots.find((s) => s.id === slotId);
-    if (!slot || slot.status === "booked") return;
+  // Generate next 7 days for date picker
+  const dates = Array.from({ length: 7 }, (_, i) => {
+    const d = addDays(new Date(), i);
+    return { value: format(d, "yyyy-MM-dd"), label: format(d, "EEE, MMM d") };
+  });
 
-    setAllSlots((prev) =>
-      prev.map((s) => (s.id === slotId ? { ...s, status: "booked" as const } : s))
-    );
-
-    bookingCounter++;
-    const newBooking: Booking = {
-      id: `session-b${bookingCounter}`,
-      slotId: slot.id,
-      sportId: slot.sportId,
-      sport: sport?.name || "",
-      date: slot.date,
-      time: slot.time,
-      status: "Confirmed",
+  // Fetch existing bookings for this sport + date
+  useEffect(() => {
+    if (!numSportId || !selectedDate) return;
+    const fetchBookings = async () => {
+      const { data } = await supabase
+        .from("bookings")
+        .select("start_time, end_time")
+        .eq("sport_id", numSportId)
+        .eq("date", selectedDate)
+        .eq("status", "booked");
+      setBookedSlots(data || []);
     };
-    setBookings((prev) => [...prev, newBooking]);
-    toast.success(`Booked ${sport?.name} at ${slot.time}!`);
+    fetchBookings();
+  }, [numSportId, selectedDate]);
+
+  const isSlotBooked = (start: string, end: string) => {
+    return bookedSlots.some((b) => {
+      const bStart = b.start_time.slice(0, 5);
+      const bEnd = b.end_time.slice(0, 5);
+      return bStart < end && bEnd > start;
+    });
   };
 
-  // ── handleCancel ──
-  const handleCancel = (bookingId: string) => {
-    const booking = bookings.find((b) => b.id === bookingId);
-    if (!booking) return;
+  const handleBook = async (slot: { start: string; end: string; label: string }) => {
+    if (!user) {
+      toast.error("Please log in to book");
+      return;
+    }
+    setBookingInProgress(slot.start);
 
-    setAllSlots((prev) =>
-      prev.map((s) => (s.id === booking.slotId ? { ...s, status: "available" as const } : s))
-    );
+    const { error } = await supabase.from("bookings").insert({
+      user_id: user.id,
+      sport_id: numSportId,
+      date: selectedDate,
+      start_time: slot.start,
+      end_time: slot.end,
+      status: "booked",
+    });
 
-    setBookings((prev) => prev.filter((b) => b.id !== bookingId));
-    toast.success(`Booking cancelled. Slot is now available.`);
-  };
+    if (error) {
+      toast.error(error.message || "Booking failed");
+      setBookingInProgress(null);
+      return;
+    }
 
-  // ── handlePostpone ──
-  const handlePostpone = (oldBookingId: string, newSlotId: string) => {
-    const booking = bookings.find((b) => b.id === oldBookingId);
-    const newSlot = allSlots.find((s) => s.id === newSlotId);
-    if (!booking || !newSlot) return;
-
-    setAllSlots((prev) =>
-      prev.map((s) => {
-        if (s.id === booking.slotId) return { ...s, status: "available" as const };
-        if (s.id === newSlotId) return { ...s, status: "booked" as const };
-        return s;
-      })
-    );
-
-    setBookings((prev) =>
-      prev.map((b) =>
-        b.id === oldBookingId
-          ? { ...b, slotId: newSlotId, time: newSlot.time, date: newSlot.date, status: "Confirmed" as const }
-          : b
-      )
-    );
-
-    toast.success(`Booking postponed to ${newSlot.time}!`);
-    setPostponeBookingId(null);
+    toast.success(`Booked ${sport?.name} at ${slot.label}!`);
+    setBookingInProgress(null);
+    // Refresh booked slots
+    const { data } = await supabase
+      .from("bookings")
+      .select("start_time, end_time")
+      .eq("sport_id", numSportId)
+      .eq("date", selectedDate)
+      .eq("status", "booked");
+    setBookedSlots(data || []);
   };
 
   if (!sport) {
     return (
-      <div className="min-h-screen">
-        <StudentNavbar />
-        <div className="flex items-center justify-center py-20 text-muted-foreground">Sport not found.</div>
+      <div className="min-h-screen bg-black/[0.96] text-white flex items-center justify-center">
+        <p className="text-white/40">Sport not found.</p>
       </div>
     );
   }
 
-  const availableSlotsForPostpone = allSlots.filter(
-    (s) => s.sportId === sportId && s.status === "available"
-  );
-
   return (
-    <div className="min-h-screen">
-      <StudentNavbar />
-      <main className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:py-12">
-        <button onClick={() => navigate("/dashboard")} className="mb-8 inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-all duration-200 group animate-fade-up">
-          <ArrowLeft className="h-4 w-4 transition-transform duration-200 group-hover:-translate-x-1" /> Back to Dashboard
-        </button>
+    <div className="min-h-screen bg-black/[0.96] text-white">
+      {/* Ambient glow */}
+      <div className="fixed inset-0 z-0 pointer-events-none">
+        <div className="absolute top-1/4 right-1/4 w-[500px] h-[500px] rounded-full bg-emerald-500/[0.04] blur-[120px]" />
+        <div className="absolute bottom-1/3 left-1/3 w-[400px] h-[400px] rounded-full bg-emerald-500/[0.06] blur-[100px]" />
+      </div>
 
-        <div className="mb-10 animate-fade-up" style={{ animationDelay: '0.1s' }}>
-          <h1 className="text-3xl font-extrabold text-foreground sm:text-4xl tracking-tight">
+      {/* Nav */}
+      <nav className="sticky top-0 z-50 border-b border-white/[0.06] bg-black/80 backdrop-blur-xl">
+        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6">
+          <button onClick={() => navigate("/dashboard")} className="flex items-center gap-2 text-sm text-white/50 hover:text-white transition-colors group">
+            <ArrowLeft className="h-4 w-4 transition-transform group-hover:-translate-x-1" /> Back to Dashboard
+          </button>
+          <div className="flex items-center gap-2.5 font-extrabold text-lg">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-500 text-white">
+              <Trophy className="h-5 w-5" />
+            </div>
+            <span className="tracking-tight text-white hidden sm:inline">GCU Sports</span>
+          </div>
+        </div>
+      </nav>
+
+      <main className="relative z-10 mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:py-12">
+        <div className="mb-8 animate-fade-up">
+          <h1 className="text-3xl font-extrabold sm:text-4xl tracking-tight">
             {sport.icon} {sport.name}
           </h1>
-          <p className="mt-2 text-muted-foreground text-base">Select an available slot to book.</p>
+          <p className="mt-2 text-white/40 text-base">Select a date and time slot to book.</p>
         </div>
 
-        {/* ── Slot Grid ── */}
-        <ul className="grid gap-5 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-          {sportSlots.map((slot, i) => {
-            const isAvailable = slot.status === "available";
-            return (
-              <li key={slot.id} className="list-none min-h-[10rem] animate-fade-up" style={{ animationDelay: `${i * 0.05}s` }}>
-                <div className="relative h-full rounded-[1.25rem] border-[0.75px] border-border p-2 md:rounded-[1.5rem] md:p-3">
-                  <GlowingEffect
-                    spread={40}
-                    glow={true}
-                    disabled={false}
-                    proximity={64}
-                    inactiveZone={0.01}
-                    borderWidth={3}
-                  />
-                  <div
-                    className={`relative flex h-full flex-col justify-between overflow-hidden rounded-xl border-[0.75px] p-6 shadow-sm transition-all duration-300 dark:shadow-[0px_0px_27px_0px_rgba(45,45,45,0.3)] ${
-                      isAvailable
-                        ? "bg-background hover:-translate-y-1"
-                        : "bg-red-50/50 dark:bg-red-950/20 opacity-75"
-                    }`}
-                  >
-                    <div className="flex items-center gap-2 mb-2">
-                      <Clock className={`h-4 w-4 ${isAvailable ? "text-emerald-500" : "text-red-400"}`} />
-                      <span className="text-base font-bold text-foreground">{slot.time}</span>
-                    </div>
-                    <div className="text-xs text-muted-foreground mb-3">{slot.date}</div>
-                    <span className={`inline-block rounded-full px-3 py-1 text-xs font-bold mb-4 transition-all duration-300 ${
-                      isAvailable
-                        ? "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400"
-                        : "bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400"
+        {/* Date Picker */}
+        <div className="mb-8 animate-fade-up" style={{ animationDelay: "0.1s" }}>
+          <h3 className="text-sm font-bold text-white/50 uppercase tracking-wider mb-3">Select Date</h3>
+          <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+            {dates.map((d) => (
+              <button
+                key={d.value}
+                onClick={() => setSelectedDate(d.value)}
+                className={`flex-shrink-0 rounded-xl px-4 py-2.5 text-sm font-semibold transition-all duration-200 border ${
+                  selectedDate === d.value
+                    ? "bg-emerald-500 text-white border-emerald-500 shadow-lg shadow-emerald-500/20"
+                    : "bg-white/[0.03] text-white/60 border-white/[0.06] hover:bg-white/[0.06] hover:text-white"
+                }`}
+              >
+                {d.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Time Slots Grid */}
+        <div className="animate-fade-up" style={{ animationDelay: "0.2s" }}>
+          <h3 className="text-sm font-bold text-white/50 uppercase tracking-wider mb-3">Available Slots</h3>
+          <ul className="grid gap-3 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+            {TIME_SLOTS.map((slot) => {
+              const booked = isSlotBooked(slot.start, slot.end);
+              const isBooking = bookingInProgress === slot.start;
+              return (
+                <li key={slot.start} className="list-none">
+                  <div className="relative rounded-[1rem] border-[0.75px] border-white/[0.06] p-1.5">
+                    <GlowingEffect spread={30} glow={true} disabled={booked} proximity={64} inactiveZone={0.01} borderWidth={2} />
+                    <div className={`relative overflow-hidden rounded-lg border-[0.75px] p-4 transition-all duration-300 ${
+                      booked
+                        ? "bg-red-950/20 border-red-500/10 opacity-60"
+                        : "bg-white/[0.03] border-white/[0.06] hover:-translate-y-0.5"
                     }`}>
-                      {isAvailable ? "✓ Available" : "✕ Booked"}
-                    </span>
-                    <div>
+                      <div className="flex items-center gap-2 mb-2">
+                        <Clock className={`h-3.5 w-3.5 ${booked ? "text-red-400" : "text-emerald-400"}`} />
+                        <span className="text-sm font-bold text-white">{slot.label}</span>
+                      </div>
+                      <span className={`inline-block rounded-full px-2.5 py-0.5 text-[10px] font-bold mb-3 ${
+                        booked
+                          ? "bg-red-500/10 text-red-400 border border-red-500/20"
+                          : "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
+                      }`}>
+                        {booked ? "✕ Booked" : "✓ Available"}
+                      </span>
                       <Button
                         size="sm"
-                        disabled={!isAvailable}
-                        className={`w-full rounded-xl transition-all duration-300 ${
-                          isAvailable
-                            ? "bg-emerald-500 hover:bg-emerald-600 text-white hover:shadow-lg hover:shadow-emerald-500/25 hover:-translate-y-0.5 active:translate-y-0"
-                            : "bg-red-200/60 dark:bg-red-900/40 text-red-400 dark:text-red-500 cursor-not-allowed border-red-200 dark:border-red-800/30"
+                        disabled={booked || isBooking}
+                        className={`w-full rounded-lg text-xs transition-all duration-300 ${
+                          booked
+                            ? "bg-red-500/10 text-red-400 cursor-not-allowed border border-red-500/20"
+                            : "bg-emerald-500 hover:bg-emerald-600 text-white hover:shadow-lg hover:shadow-emerald-500/25"
                         }`}
-                        onClick={() => handleBook(slot.id)}
+                        onClick={() => handleBook(slot)}
                       >
-                        {isAvailable ? (
-                          <span className="flex items-center gap-1.5">
-                            <CalendarCheck className="h-3.5 w-3.5" /> Book Now
+                        {isBooking ? "Booking..." : booked ? "Booked" : (
+                          <span className="flex items-center gap-1">
+                            <CalendarCheck className="h-3 w-3" /> Book
                           </span>
-                        ) : (
-                          "Booked"
                         )}
                       </Button>
                     </div>
                   </div>
-                </div>
-              </li>
-            );
-          })}
-        </ul>
-
-        {/* ── Session Bookings ── */}
-        {bookings.length > 0 && (
-          <div className="mt-14 animate-fade-up" style={{ animationDelay: '0.2s' }}>
-            <h2 className="text-2xl font-extrabold text-foreground mb-6 flex items-center gap-2.5">
-              <CalendarCheck className="h-6 w-6 text-emerald-500" />
-              My Session Bookings
-              <span className="ml-2 inline-flex items-center justify-center h-7 w-7 rounded-full bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400 text-xs font-bold">
-                {bookings.length}
-              </span>
-            </h2>
-
-            <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {bookings.map((booking, i) => (
-                <li key={booking.id} className="list-none min-h-[10rem]">
-                  <div
-                    className="relative h-full rounded-[1.25rem] border-[0.75px] border-border p-2 md:rounded-[1.5rem] md:p-3 animate-pop-in"
-                    style={{ animationDelay: `${i * 0.08}s` }}
-                  >
-                    <GlowingEffect
-                      spread={40}
-                      glow={true}
-                      disabled={false}
-                      proximity={64}
-                      inactiveZone={0.01}
-                      borderWidth={3}
-                    />
-                    <div className="relative flex h-full flex-col justify-between overflow-hidden rounded-xl border-[0.75px] bg-background p-5 shadow-sm dark:shadow-[0px_0px_27px_0px_rgba(45,45,45,0.3)]">
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="flex items-center gap-2">
-                          <Clock className="h-4 w-4 text-emerald-500" />
-                          <span className="font-bold text-foreground">{booking.time}</span>
-                        </div>
-                        <span className="inline-block rounded-full px-3 py-1 text-xs font-bold bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400">
-                          {booking.status}
-                        </span>
-                      </div>
-                      <div className="text-sm text-muted-foreground mb-4">{booking.date}</div>
-                      <div className="flex gap-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="flex-1 rounded-xl border-red-200 dark:border-red-800/40 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 hover:text-red-600 hover:border-red-300 transition-all duration-200 hover:shadow-md hover:shadow-red-500/10"
-                          onClick={() => handleCancel(booking.id)}
-                        >
-                          <X className="h-3.5 w-3.5 mr-1" /> Cancel
-                        </Button>
-                        <Button
-                          size="sm"
-                          className="flex-1 rounded-xl bg-amber-500 hover:bg-amber-600 text-white transition-all duration-200 hover:shadow-md hover:shadow-amber-500/20 hover:-translate-y-0.5"
-                          onClick={() => setPostponeBookingId(booking.id)}
-                        >
-                          <ArrowRightLeft className="h-3.5 w-3.5 mr-1" /> Postpone
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
                 </li>
-              ))}
-            </ul>
-          </div>
-        )}
+              );
+            })}
+          </ul>
+        </div>
       </main>
-
-      <PostponeModal
-        open={!!postponeBookingId}
-        onClose={() => setPostponeBookingId(null)}
-        bookingId={postponeBookingId || ""}
-        availableSlots={availableSlotsForPostpone}
-        onConfirm={(newSlotId) => {
-          if (postponeBookingId) handlePostpone(postponeBookingId, newSlotId);
-        }}
-      />
     </div>
   );
 }
