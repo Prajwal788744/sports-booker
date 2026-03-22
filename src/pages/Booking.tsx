@@ -90,7 +90,7 @@ function TimeDropdown({
         <ChevronDown className={`h-4 w-4 text-white/40 transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
       {open && (
-        <div className="absolute z-50 mt-1 w-full max-h-60 overflow-y-auto rounded-xl bg-black/60 backdrop-blur-xl border border-white/[0.12] shadow-2xl shadow-black/60">
+        <div className="absolute z-50 mt-1 w-full max-h-60 overflow-y-auto rounded-xl bg-black/80 backdrop-blur-lg border border-white/[0.12] shadow-2xl shadow-black/60">
           {options.map((opt) => {
             const status = getTimeStatus(opt.value);
             const isActive = opt.value === value;
