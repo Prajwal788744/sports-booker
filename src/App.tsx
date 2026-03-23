@@ -18,6 +18,7 @@ import TeamSetup from "./pages/TeamSetup";
 import Scoring from "./pages/Scoring";
 import LiveScore from "./pages/LiveScore";
 import MatchHistory from "./pages/MatchHistory";
+import Profile from "./pages/Profile";
 
 const queryClient = new QueryClient();
 
@@ -76,6 +77,7 @@ const App = () => (
             <Route path="/scoring/:matchId" element={<Scoring />} />
             <Route path="/live/:matchId" element={<LiveScore />} />
             <Route path="/matches" element={<MatchHistory />} />
+            <Route path="/profile" element={<Profile />} />
             <Route path="/admin" element={<AdminPanel />} />
             <Route path="*" element={<NotFound />} />
           </Routes>

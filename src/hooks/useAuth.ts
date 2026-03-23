@@ -51,7 +51,7 @@ export function useAuth() {
   const signUp = async (
     email: string,
     password: string,
-    metadata: { name: string; reg_no: string }
+    metadata: { name: string; reg_no: string; team_name?: string }
   ) => {
     const { data, error } = await supabase.auth.signUp({
       email,
@@ -60,6 +60,10 @@ export function useAuth() {
         data: metadata,
       },
     });
+    // Also update team_name in users table if provided
+    if (!error && data.user && metadata.team_name) {
+      await supabase.from("users").update({ team_name: metadata.team_name }).eq("id", data.user.id);
+    }
     return { data, error };
   };
 

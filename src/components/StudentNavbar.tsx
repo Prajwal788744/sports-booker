@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { LogOut, Menu, X, Trophy, Moon, Sun, ChevronDown, LayoutDashboard, CalendarDays } from "lucide-react";
+import { LogOut, Menu, X, Trophy, Moon, Sun, ChevronDown, LayoutDashboard, CalendarDays, User } from "lucide-react";
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/lib/supabase";
@@ -14,6 +14,7 @@ import {
 const navItems = [
   { label: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
   { label: "My Bookings", path: "/my-bookings", icon: CalendarDays },
+  { label: "Profile", path: "/profile", icon: User },
 ];
 
 export function StudentNavbar() {

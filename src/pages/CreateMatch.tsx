@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/hooks/useAuth";
@@ -23,11 +23,27 @@ export default function CreateMatch() {
   const [teamAName, setTeamAName] = useState("");
   const [teamBName, setTeamBName] = useState("");
   const [creating, setCreating] = useState(false);
+  const [authorized, setAuthorized] = useState(true);
 
   const selectedType = MATCH_TYPES.find((t) => t.value === matchType)!;
 
+  // Check if user owns the booking (only when created from a booking)
+  useEffect(() => {
+    if (!bookingId || !user) return;
+    const checkOwnership = async () => {
+      const { data } = await supabase.from("bookings").select("user_id").eq("id", Number(bookingId)).single();
+      if (data && data.user_id !== user.id) {
+        setAuthorized(false);
+        toast.error("Only the person who booked can create a match");
+        setTimeout(() => navigate("/my-bookings"), 1500);
+      }
+    };
+    checkOwnership();
+  }, [bookingId, user]);
+
   const handleCreate = async () => {
     if (!user) return toast.error("Please log in");
+    if (!authorized) return toast.error("Only the booking owner can create a match");
     if (!teamAName.trim() || !teamBName.trim()) return toast.error("Enter both team names");
     if (totalOvers < 1 || totalOvers > 90) return toast.error("Overs must be 1-90");
 

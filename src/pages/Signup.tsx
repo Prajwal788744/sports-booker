@@ -15,6 +15,7 @@ export default function Signup() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [regNo, setRegNo] = useState("");
+  const [teamName, setTeamName] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [step, setStep] = useState<"form" | "success">("form");
@@ -56,7 +57,7 @@ export default function Signup() {
     }
 
     setIsSubmitting(true);
-    const { error } = await signUp(email, password, { name, reg_no: regNo });
+    const { error } = await signUp(email, password, { name, reg_no: regNo, team_name: teamName });
     setIsSubmitting(false);
 
     if (error) {
@@ -176,6 +177,15 @@ export default function Signup() {
                       onChange={(e) => setRegNo(e.target.value)}
                       className="w-full backdrop-blur-sm bg-white/5 text-white border border-white/10 rounded-full py-3 px-5 focus:outline-none focus:border-emerald-500/50 transition-colors text-center placeholder:text-white/30"
                       required
+                    />
+
+                    {/* Team Name */}
+                    <input
+                      type="text"
+                      placeholder="Team Name (optional)"
+                      value={teamName}
+                      onChange={(e) => setTeamName(e.target.value)}
+                      className="w-full backdrop-blur-sm bg-white/5 text-white border border-white/10 rounded-full py-3 px-5 focus:outline-none focus:border-emerald-500/50 transition-colors text-center placeholder:text-white/30"
                     />
 
                     {/* Password */}
