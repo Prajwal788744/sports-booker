@@ -74,6 +74,8 @@ export default function MyBookings() {
   const [loading, setLoading] = useState(true);
   const [matchStatuses, setMatchStatuses] = useState<Record<number, { matchId: number; status: string; teamA: string; teamB: string; winner: string | null }>>({});
 
+  const [allCompletedMatches, setAllCompletedMatches] = useState<{ id: number; teamA: string; teamB: string; winner: string | null; matchType: string; totalOvers: number; createdAt: string }[]>([]);
+
   // Postpone modal state
   const [postponeBooking, setPostponeBooking] = useState<BookingRow | null>(null);
   const [postponeDate, setPostponeDate] = useState("");
@@ -113,6 +115,20 @@ export default function MyBookings() {
         }
       }
     }
+
+    // Fetch ALL completed matches (regardless of who booked)
+    const { data: completedMatches } = await supabase
+      .from("matches")
+      .select("id, team_a_name, team_b_name, winner, match_type, total_overs, created_at")
+      .eq("status", "completed")
+      .order("created_at", { ascending: false });
+    if (completedMatches) {
+      setAllCompletedMatches(completedMatches.map(m => ({
+        id: m.id, teamA: m.team_a_name, teamB: m.team_b_name, winner: m.winner,
+        matchType: m.match_type, totalOvers: m.total_overs, createdAt: m.created_at,
+      })));
+    }
+
     setLoading(false);
   };
 
@@ -486,6 +502,55 @@ export default function MyBookings() {
                     );
                   })}
                 </ul>
+              </div>
+            )}
+
+            {/* All Completed Matches (global) */}
+            {allCompletedMatches.length > 0 && (
+              <div className="mt-10 animate-fade-up" style={{ animationDelay: "0.25s" }}>
+                <h3 className="text-sm font-bold text-emerald-400 uppercase tracking-wider mb-4 flex items-center gap-2">
+                  <Trophy className="h-3.5 w-3.5" /> All Completed Matches
+                </h3>
+                <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] overflow-hidden">
+                  <div className="grid grid-cols-4 text-[10px] font-bold text-white/30 uppercase px-5 py-3 border-b border-white/[0.04]">
+                    <span className="col-span-1">Teams</span>
+                    <span className="text-center">Type</span>
+                    <span className="text-center">Result</span>
+                    <span className="text-right">Action</span>
+                  </div>
+                  {allCompletedMatches.map((m) => {
+                    const winnerName = m.winner === "tie" ? "Tied" : m.winner === "A" ? `${m.teamA} won` : m.winner === "B" ? `${m.teamB} won` : "—";
+                    const date = new Date(m.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+                    return (
+                      <div key={m.id} className="grid grid-cols-4 items-center px-5 py-3.5 border-b border-white/[0.02] last:border-0 hover:bg-white/[0.02] transition-colors">
+                        <div className="col-span-1">
+                          <p className="text-sm font-semibold text-white/80 truncate">
+                            {m.teamA} <span className="text-white/30">vs</span> {m.teamB}
+                          </p>
+                          <p className="text-[10px] text-white/30 mt-0.5">{date}</p>
+                        </div>
+                        <div className="text-center">
+                          <span className="text-xs text-white/40 font-medium">{m.matchType} · {m.totalOvers}ov</span>
+                        </div>
+                        <div className="text-center">
+                          <span className={`inline-block text-xs font-bold px-2.5 py-1 rounded-full border ${
+                            m.winner === "tie" ? "bg-amber-500/10 text-amber-400 border-amber-500/20" : "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+                          }`}>
+                            {winnerName}
+                          </span>
+                        </div>
+                        <div className="text-right">
+                          <button
+                            onClick={() => navigate(`/live/${m.id}`)}
+                            className="text-xs text-emerald-400/70 hover:text-emerald-400 transition-colors font-semibold flex items-center gap-1 ml-auto"
+                          >
+                            <Eye className="h-3 w-3" /> View
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             )}
           </>

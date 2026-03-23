@@ -69,6 +69,12 @@ export default function CreateMatch() {
       return;
     }
 
+    // Sync team name to user profile (set Team A as user's team if not already set)
+    const { data: userData } = await supabase.from("users").select("team_name").eq("id", user.id).single();
+    if (!userData?.team_name) {
+      await supabase.from("users").update({ team_name: teamAName.trim() }).eq("id", user.id);
+    }
+
     toast.success("Match created!");
     navigate(`/team-setup/${data.id}`);
   };
