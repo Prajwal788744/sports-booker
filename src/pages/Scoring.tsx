@@ -686,7 +686,7 @@ export default function Scoring() {
             </div>
 
             {/* Extras — No Ball, Wide, Bonus */}
-            <div>
+            <div className="relative z-20">
               <h4 className="text-xs font-bold text-white/40 uppercase tracking-wider mb-2">Extras</h4>
               <div className="grid grid-cols-3 gap-2">
                 {/* No Ball Dropdown */}
