@@ -25,15 +25,30 @@ export default function TeamSetup() {
   const [starting, setStarting] = useState(false);
 
   useEffect(() => {
-    supabase.from("matches").select("*").eq("id", numMatchId).single()
-      .then(({ data }) => {
-        if (data) {
-          setMatch(data);
-          // Auto-redirect if match already started
-          if (data.status === "ongoing") navigate(`/scoring/${numMatchId}`, { replace: true });
-          if (data.status === "completed") navigate(`/live/${numMatchId}`, { replace: true });
+    const init = async () => {
+      const { data } = await supabase.from("matches").select("*").eq("id", numMatchId).single();
+      if (!data) return;
+
+      // If ongoing/completed, verify innings actually exist before redirecting
+      if (data.status === "ongoing") {
+        const { data: inns } = await supabase.from("innings").select("id").eq("match_id", numMatchId).limit(1);
+        if (inns && inns.length > 0) {
+          navigate(`/scoring/${numMatchId}`, { replace: true });
+          return;
+        } else {
+          // Broken state — match marked ongoing but no innings. Reset it.
+          await supabase.from("matches").update({ status: "not_started" }).eq("id", numMatchId);
+          data.status = "not_started";
         }
-      });
+      }
+      if (data.status === "completed") {
+        navigate(`/live/${numMatchId}`, { replace: true });
+        return;
+      }
+      setMatch(data);
+    };
+    init();
+
     supabase.from("match_players").select("player_id, team, is_captain, players(name)")
       .eq("match_id", numMatchId)
       .then(({ data }) => {

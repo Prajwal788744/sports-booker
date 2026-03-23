@@ -315,7 +315,27 @@ export default function MyBookings() {
                                   size="sm"
                                   variant="outline"
                                   className="flex-1 rounded-xl border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/10 hover:text-emerald-300 hover:border-emerald-500/30 transition-all duration-200 bg-transparent"
-                                  onClick={() => navigate(`/create-match/${b.id}`)}
+                                  onClick={async () => {
+                                    // Check if match already exists for this booking
+                                    const { data: existingMatch } = await supabase
+                                      .from("matches")
+                                      .select("id, status")
+                                      .eq("booking_id", b.id)
+                                      .order("created_at", { ascending: false })
+                                      .limit(1)
+                                      .single();
+                                    if (existingMatch) {
+                                      if (existingMatch.status === "completed") {
+                                        navigate(`/live/${existingMatch.id}`);
+                                      } else if (existingMatch.status === "ongoing") {
+                                        navigate(`/scoring/${existingMatch.id}`);
+                                      } else {
+                                        navigate(`/team-setup/${existingMatch.id}`);
+                                      }
+                                    } else {
+                                      navigate(`/create-match/${b.id}`);
+                                    }
+                                  }}
                                 >
                                   <Gamepad2 className="h-3.5 w-3.5 mr-1" /> Match
                                 </Button>
