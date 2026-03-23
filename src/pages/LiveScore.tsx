@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
-import { ArrowLeft, Trophy, Circle, Wifi, Award } from "lucide-react";
+import { ArrowLeft, Trophy, Circle, Wifi, Award, Zap } from "lucide-react";
 
 interface MatchData {
   id: number; match_type: string; total_overs: number; status: string;
@@ -17,6 +17,7 @@ interface BallEvent {
   id: number; over_number: number; ball_number: number;
   runs: number; extra_type: string; wicket_type: string;
   batsman_id: number; bowler_id: number; innings_id: number; created_at: string;
+  is_free_hit?: boolean; caught_by?: number | null; catch_quality?: string | null;
 }
 interface MPlayer { player_id: number; team: string; is_captain: boolean; name: string; }
 interface PStats {
@@ -109,6 +110,31 @@ export default function LiveScore() {
       : `${lastBall.runs}`
     : null;
 
+  // Check if next ball is a free hit (last ball was a no_ball)
+  const isNextFreeHit = lastBall && lastBall.extra_type === "no_ball";
+
+  // Build dismissal description
+  const getDismissalText = (ball: typeof lastBall) => {
+    if (!ball || ball.wicket_type === "none") return null;
+    const batter = getPlayerName(ball.batsman_id);
+    const bowler = getPlayerName(ball.bowler_id);
+    switch (ball.wicket_type) {
+      case "bowled":
+        return `🏏 ${bowler} bowled ${batter}`;
+      case "caught": {
+        const fielder = ball.caught_by ? getPlayerName(ball.caught_by) : "?";
+        const quality = ball.catch_quality ? ` (${ball.catch_quality} catch)` : "";
+        return `🧤 ${batter} c ${fielder} b ${bowler}${quality}`;
+      }
+      case "run_out":
+        return `🏃 ${batter} run out`;
+      case "hit_wicket":
+        return `💥 ${batter} hit wicket b ${bowler}`;
+      default:
+        return `${batter} out (${ball.wicket_type})`;
+    }
+  };
+
   return (
     <div className="min-h-screen bg-black/[0.96] text-white">
       <div className="fixed inset-0 z-0 pointer-events-none">
@@ -188,6 +214,20 @@ export default function LiveScore() {
           )}
         </div>
 
+        {/* FREE HIT Banner for Live Viewers */}
+        {isNextFreeHit && match.status === "ongoing" && (
+          <div className="mb-4 rounded-2xl border-2 border-amber-500/40 bg-gradient-to-r from-amber-500/20 via-orange-500/20 to-red-500/20 p-4 animate-pulse">
+            <div className="flex items-center justify-center gap-3">
+              <Zap className="h-6 w-6 text-amber-400" />
+              <span className="text-xl font-black text-amber-400 tracking-wide">🔥 FREE HIT</span>
+              <Zap className="h-6 w-6 text-amber-400" />
+            </div>
+            <p className="text-center text-xs text-amber-300/70 mt-1 font-medium">
+              Next delivery is a free hit — only run out is possible
+            </p>
+          </div>
+        )}
+
         {/* Last Ball */}
         {lastBall && match.status === "ongoing" && (
           <div className="mb-6 animate-fade-up" style={{ animationDelay: "0.1s" }}>
@@ -202,10 +242,19 @@ export default function LiveScore() {
               }`}>
                 {lastBallText}
               </div>
-              <div className="text-xs text-white/50">
+              <div className="text-xs text-white/50 flex-1">
                 <span className="font-semibold text-white/70">{getPlayerName(lastBall.batsman_id)}</span> off{" "}
                 <span className="font-semibold text-white/70">{getPlayerName(lastBall.bowler_id)}</span>
                 <span className="text-white/30"> · Over {lastBall.over_number}.{lastBall.ball_number + 1}</span>
+                {lastBall.is_free_hit && (
+                  <span className="ml-2 text-[10px] font-bold text-amber-400 bg-amber-500/15 px-1.5 py-0.5 rounded">FREE HIT</span>
+                )}
+                {/* Dismissal description */}
+                {getDismissalText(lastBall) && (
+                  <div className="mt-1 text-xs font-semibold text-red-400">
+                    {getDismissalText(lastBall)}
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -248,17 +297,22 @@ export default function LiveScore() {
                           {sortedBalls.map((b) => (
                             <div
                               key={b.id}
-                              className={`flex-shrink-0 h-9 w-9 rounded-lg flex items-center justify-center text-xs font-bold ${
+                              className={`relative flex-shrink-0 h-9 w-9 rounded-lg flex items-center justify-center text-xs font-bold ${
                                 b.wicket_type !== "none"
                                   ? "bg-red-500/20 text-red-400 border border-red-500/30"
                                   : b.extra_type !== "none"
                                   ? "bg-amber-500/15 text-amber-400 border border-amber-500/20"
+                                  : b.is_free_hit
+                                  ? "bg-amber-500/10 text-amber-300 border border-amber-500/30"
                                   : b.runs >= 4
                                   ? "bg-blue-500/15 text-blue-400 border border-blue-500/20"
                                   : "bg-white/[0.04] text-white/60 border border-white/[0.06]"
                               }`}
                             >
-                              {b.wicket_type !== "none" ? "W" : b.extra_type !== "none" ? b.extra_type[0].toUpperCase() : b.runs}
+                              {b.wicket_type !== "none" ? "W" : b.extra_type !== "none" ? b.extra_type[0].toUpperCase() : b.is_free_hit ? `${b.runs}` : b.runs}
+                              {b.is_free_hit && b.wicket_type === "none" && b.extra_type === "none" && (
+                                <span className="absolute -top-1 -right-1 text-[7px] font-black text-amber-400 bg-amber-500/20 rounded px-0.5">FH</span>
+                              )}
                             </div>
                           ))}
                         </div>

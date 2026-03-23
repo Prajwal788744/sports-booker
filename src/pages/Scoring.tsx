@@ -3,7 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Trophy, Circle, ChevronRight, Award, XCircle } from "lucide-react";
+import { ArrowLeft, Trophy, Circle, ChevronRight, ChevronDown, Award, XCircle, Zap, Gift } from "lucide-react";
 import { toast } from "sonner";
 
 interface MatchData {
@@ -20,6 +20,7 @@ interface BallEvent {
   id: number; over_number: number; ball_number: number;
   runs: number; extra_type: string; wicket_type: string;
   batsman_id: number; bowler_id: number; innings_id: number;
+  is_free_hit?: boolean; caught_by?: number | null; catch_quality?: string | null;
 }
 interface MPlayer { player_id: number; team: string; is_captain: boolean; name: string; }
 interface PStats {
@@ -50,6 +51,18 @@ export default function Scoring() {
 
   // End match
   const [showEndMatch, setShowEndMatch] = useState(false);
+
+  // Free hit state
+  const [isFreeHit, setIsFreeHit] = useState(false);
+
+  // Dropdown state for extras
+  const [showNoBallDropdown, setShowNoBallDropdown] = useState(false);
+  const [showWideDropdown, setShowWideDropdown] = useState(false);
+
+  // Caught modal state
+  const [showCaughtModal, setShowCaughtModal] = useState(false);
+  const [selectedFielder, setSelectedFielder] = useState<number | null>(null);
+  const [catchQuality, setCatchQuality] = useState<string>("good");
 
   // Authorization check — only match creator can score
   useEffect(() => {
@@ -100,10 +113,11 @@ export default function Scoring() {
     }
     return bestId;
   }, [stats]);
-  // Already dismissed batsmen - must be declared BEFORE any early returns
+
+  // Already dismissed batsmen
   const [dismissedIds, setDismissedIds] = useState<number[]>([]);
 
-  // Compute currentInningsId safely for effects (may be undefined during loading)
+  // Compute currentInningsId safely for effects
   const currentInningsId = match && innings.length > 0
     ? innings.find((i) => i.innings_number === match.current_innings)?.id
     : undefined;
@@ -134,6 +148,7 @@ export default function Scoring() {
       <button onClick={() => navigate(`/team-setup/${numMatchId}`)} className="text-emerald-400 underline">Go to Team Setup</button>
     </div>
   );
+
   const battingTeam = match.batting_team;
   const bowlingTeam = match.bowling_team;
   const battingPlayers = players.filter((p) => p.team === battingTeam);
@@ -160,19 +175,29 @@ export default function Scoring() {
   // Check if we need to select batsmen/bowler first
   const needsSetup = strikerId === null || nonStrikerId === null || bowlerId === null;
 
-
   const availableBatsmen = battingPlayers.filter(
     (p) => !dismissedIds.includes(p.player_id) && p.player_id !== strikerId && p.player_id !== nonStrikerId
   );
 
   // Handle ball action
-  const handleBall = async (runs: number, extraType: string = "none", wicketType: string = "none") => {
+  const handleBall = async (
+    runs: number,
+    extraType: string = "none",
+    wicketType: string = "none",
+    caughtBy: number | null = null,
+    catchQualityVal: string | null = null
+  ) => {
     if (!strikerId || !bowlerId || processing) return;
     setProcessing(true);
 
+    // Close dropdowns
+    setShowNoBallDropdown(false);
+    setShowWideDropdown(false);
+
     const isExtra = extraType !== "none";
     const isWicket = wicketType !== "none";
-    const validBall = !isExtra;
+    // Legal delivery: not a wide, not a no_ball, not a bonus
+    const validBall = extraType === "none";
 
     let newBalls = currentInnings.balls;
     let newOvers = currentInnings.overs;
@@ -184,9 +209,14 @@ export default function Scoring() {
       }
     }
 
-    const totalRuns = currentInnings.runs + runs + (isExtra ? 1 : 0);
+    // Calculate total runs to add to innings
+    // For extras (wide/no_ball/bonus): 1 penalty run is always added
+    const penaltyRun = isExtra ? 1 : 0;
+    const totalRuns = currentInnings.runs + runs + penaltyRun;
     const totalWickets = currentInnings.wickets + (isWicket ? 1 : 0);
-    const extraRun = isExtra ? 1 : 0;
+
+    // Determine if this ball was a free hit
+    const ballIsFreeHit = isFreeHit;
 
     // Insert ball event
     await supabase.from("ball_events").insert({
@@ -199,6 +229,9 @@ export default function Scoring() {
       runs,
       extra_type: extraType,
       wicket_type: wicketType,
+      is_free_hit: ballIsFreeHit,
+      caught_by: caughtBy,
+      catch_quality: catchQualityVal,
     });
 
     // Update innings
@@ -209,12 +242,12 @@ export default function Scoring() {
       balls: newBalls,
     }).eq("id", currentInnings.id);
 
-    // Update batsman stats
+    // Update batsman stats (not for wides — batsman doesn't face the ball)
     if (extraType !== "wide") {
       const batsmanStats = getStats(strikerId);
       await supabase.from("player_stats").update({
         runs_scored: (batsmanStats?.runs_scored || 0) + runs,
-        balls_faced: (batsmanStats?.balls_faced || 0) + 1,
+        balls_faced: (batsmanStats?.balls_faced || 0) + (validBall ? 1 : (extraType === "no_ball" ? 1 : 0)),
         fours: (batsmanStats?.fours || 0) + (runs === 4 ? 1 : 0),
         sixes: (batsmanStats?.sixes || 0) + (runs === 6 ? 1 : 0),
       }).eq("match_id", numMatchId).eq("player_id", strikerId);
@@ -223,23 +256,71 @@ export default function Scoring() {
     // Update bowler stats
     const bowlerStats = getStats(bowlerId);
     await supabase.from("player_stats").update({
-      runs_conceded: (bowlerStats?.runs_conceded || 0) + runs + extraRun,
+      runs_conceded: (bowlerStats?.runs_conceded || 0) + runs + penaltyRun,
       wickets_taken: (bowlerStats?.wickets_taken || 0) + (isWicket ? 1 : 0),
     }).eq("match_id", numMatchId).eq("player_id", bowlerId);
 
-    // Rotate strike on odd runs
-    if (runs % 2 === 1) {
-      const temp = strikerId;
+    // ======== STRIKE ROTATION (Official Cricket Rules) ========
+    // For wides: strike does NOT change (batsman didn't face the ball)
+    // For bonus: strike does NOT change
+    // For no_ball: strike changes based on batsman runs (odd = swap)
+    // For normal: strike changes based on runs scored (odd = swap)
+    const shouldSwapForRuns = extraType !== "wide" && extraType !== "bonus" && runs % 2 === 1;
+
+    if (shouldSwapForRuns) {
       setStrikerId(nonStrikerId);
-      setNonStrikerId(temp);
+      setNonStrikerId(strikerId);
     }
 
-    // Over complete — rotate strike + select new bowler
+    // End of over — swap strike (on top of any run-based swap) + select new bowler
     if (validBall && newBalls === 0) {
-      const temp = strikerId;
-      setStrikerId(runs % 2 === 1 ? strikerId : nonStrikerId);
-      setNonStrikerId(runs % 2 === 1 ? nonStrikerId! : temp);
+      // After run-based swap above, we need one more swap for end of over
+      // This effectively means: if runs were odd, the run swap + over swap = no net swap
+      // If runs were even, no run swap + over swap = swap
+      if (shouldSwapForRuns) {
+        // Undo the run-based swap done above (since we swap again for end of over)
+        // Net effect: no swap (odd runs + end of over)
+        setStrikerId(strikerId); // Back to original
+        setNonStrikerId(nonStrikerId); // Back to original
+      } else {
+        // Even runs + end of over = swap
+        setStrikerId(nonStrikerId);
+        setNonStrikerId(strikerId);
+      }
       setSelectingBowler(true);
+    }
+
+    // ======== FREE HIT LOGIC ========
+    // No-ball triggers free hit on next ball
+    if (extraType === "no_ball") {
+      setIsFreeHit(true);
+      toast("🔥 FREE HIT! Next ball is a free hit — only run out is possible!", {
+        duration: 4000,
+        style: { background: "#f59e0b", color: "#000", fontWeight: "bold" },
+      });
+    } else if (validBall && isFreeHit) {
+      // Free hit ball was bowled (legal delivery), reset free hit
+      setIsFreeHit(false);
+    }
+    // If wide on free hit, free hit continues (wide doesn't count as legal delivery)
+
+    // ======== DISMISSAL TOASTS ========
+    if (wicketType === "bowled") {
+      toast(`🏏 ${getPlayerName(bowlerId)} bowled ${getPlayerName(strikerId)}!`, {
+        duration: 4000,
+        style: { background: "#ef4444", color: "#fff", fontWeight: "bold" },
+      });
+    } else if (wicketType === "hit_wicket") {
+      toast(`💥 ${getPlayerName(strikerId)} hit wicket b ${getPlayerName(bowlerId)}!`, {
+        duration: 4000,
+        style: { background: "#ef4444", color: "#fff", fontWeight: "bold" },
+      });
+    } else if (wicketType === "caught" && caughtBy) {
+      const fielderName = getPlayerName(caughtBy);
+      toast(`🧤 ${getPlayerName(strikerId)} c ${fielderName} b ${getPlayerName(bowlerId)} (${catchQualityVal} catch)!`, {
+        duration: 4000,
+        style: { background: "#ef4444", color: "#fff", fontWeight: "bold" },
+      });
     }
 
     // Check if innings should end
@@ -250,33 +331,24 @@ export default function Scoring() {
       await supabase.from("innings").update({ status: "completed" }).eq("id", currentInnings.id);
 
       if (match.current_innings === 1) {
-        // Switch innings
         await supabase.from("matches").update({
           current_innings: 2,
           batting_team: bowlingTeam,
           bowling_team: battingTeam,
         }).eq("id", numMatchId);
         toast.success("Innings complete! Second innings starting.");
-        // Full reload to ensure all state (batting/bowling team, players, dismissed list) is fresh
         window.location.reload();
       } else {
-        // Match over
         const inn1 = innings.find((i) => i.innings_number === 1);
         const inn2Runs = totalRuns;
         const inn1Runs = inn1?.runs || 0;
-        let winner: string | null = null;
-        if (inn2Runs > inn1Runs) winner = bowlingTeam === "A" ? "B" : "A"; // batting team (inn2) is the team that was bowling in inn1
-        else if (inn2Runs < inn1Runs) winner = battingTeam === "A" ? "B" : "A"; // team that batted first
-        else winner = "tie";
-
-        // Fix: batting team in 2nd innings wins if they score more
-        const secondBattingTeam = battingTeam; // current batting team in 2nd innings
-        const firstBattingTeam = bowlingTeam; // they batted first
+        const secondBattingTeam = battingTeam;
+        const firstBattingTeam = bowlingTeam;
+        let winner: string;
         if (inn2Runs > inn1Runs) winner = secondBattingTeam;
         else if (inn2Runs < inn1Runs) winner = firstBattingTeam;
         else winner = "tie";
 
-        // Auto-compute MOTM
         const motmId = computeMotm();
         await supabase.from("matches").update({ status: "completed", winner, man_of_match: motmId }).eq("id", numMatchId);
         toast.success(`Match over! ${winner === "tie" ? "It's a tie!" : `${teamName(winner)} wins!`}`);
@@ -293,8 +365,28 @@ export default function Scoring() {
     setProcessing(false);
   };
 
+  // Handle caught — open modal
+  const handleCaughtClick = () => {
+    if (isFreeHit) {
+      toast.error("Cannot be caught on a free hit! Only run out is possible.");
+      return;
+    }
+    setSelectedFielder(null);
+    setCatchQuality("good");
+    setShowCaughtModal(true);
+  };
+
+  // Confirm caught dismissal
+  const confirmCaught = () => {
+    if (!selectedFielder) {
+      toast.error("Please select who caught the ball");
+      return;
+    }
+    setShowCaughtModal(false);
+    handleBall(0, "none", "caught", selectedFielder, catchQuality);
+  };
+
   const endMatch = async () => {
-    // Determine winner from current scores
     const inn1 = innings.find((i) => i.innings_number === 1);
     const inn2 = innings.find((i) => i.innings_number === 2);
     const r1 = inn1?.runs || 0;
@@ -306,7 +398,6 @@ export default function Scoring() {
     else if (r2 > r1) winner = team2;
     else winner = "tie";
 
-    // Auto-compute MOTM
     const motmId = computeMotm();
 
     await supabase.from("innings").update({ status: "completed" }).eq("match_id", numMatchId);
@@ -358,6 +449,20 @@ export default function Scoring() {
       </nav>
 
       <main className="relative z-10 mx-auto max-w-2xl px-4 py-6">
+        {/* FREE HIT BANNER */}
+        {isFreeHit && (
+          <div className="mb-4 rounded-2xl border-2 border-amber-500/40 bg-gradient-to-r from-amber-500/20 via-orange-500/20 to-red-500/20 p-4 animate-pulse">
+            <div className="flex items-center justify-center gap-3">
+              <Zap className="h-6 w-6 text-amber-400" />
+              <span className="text-xl font-black text-amber-400 tracking-wide">🔥 FREE HIT</span>
+              <Zap className="h-6 w-6 text-amber-400" />
+            </div>
+            <p className="text-center text-xs text-amber-300/70 mt-1 font-medium">
+              Only run out is possible on this delivery
+            </p>
+          </div>
+        )}
+
         {/* Scoreboard */}
         <div className="rounded-2xl border border-white/[0.08] bg-gradient-to-br from-white/[0.04] to-white/[0.01] p-5 mb-6">
           <div className="flex items-center justify-between mb-3">
@@ -464,6 +569,69 @@ export default function Scoring() {
           </div>
         )}
 
+        {/* Caught Modal */}
+        {showCaughtModal && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm">
+            <div className="w-[90%] max-w-md rounded-2xl border border-red-500/20 bg-black/95 p-6 animate-fade-up">
+              <h3 className="text-lg font-bold text-red-400 mb-1">🧤 Caught!</h3>
+              <p className="text-xs text-white/40 mb-4">Who caught it from {teamName(bowlingTeam)}?</p>
+
+              <div className="grid grid-cols-2 gap-2 mb-5 max-h-48 overflow-y-auto">
+                {bowlingPlayers.map((p) => (
+                  <button
+                    key={p.player_id}
+                    onClick={() => setSelectedFielder(p.player_id)}
+                    className={`rounded-xl border px-3 py-2.5 text-sm font-medium transition-all text-left ${
+                      selectedFielder === p.player_id
+                        ? "bg-red-500/20 border-red-500/40 text-red-400"
+                        : "bg-white/[0.04] border-white/[0.06] text-white/70 hover:bg-white/[0.08]"
+                    }`}
+                  >
+                    {p.name}
+                    {p.is_captain && <span className="text-amber-400 ml-1 text-[10px]">(C)</span>}
+                  </button>
+                ))}
+              </div>
+
+              <p className="text-xs text-white/40 mb-2 font-semibold">How was the catch?</p>
+              <div className="grid grid-cols-3 gap-2 mb-5">
+                {["perfect", "good", "better"].map((q) => (
+                  <button
+                    key={q}
+                    onClick={() => setCatchQuality(q)}
+                    className={`rounded-xl border px-3 py-2.5 text-sm font-bold capitalize transition-all ${
+                      catchQuality === q
+                        ? q === "perfect" ? "bg-emerald-500/20 border-emerald-500/40 text-emerald-400"
+                          : q === "better" ? "bg-blue-500/20 border-blue-500/40 text-blue-400"
+                          : "bg-amber-500/20 border-amber-500/40 text-amber-400"
+                        : "bg-white/[0.04] border-white/[0.06] text-white/50 hover:bg-white/[0.08]"
+                    }`}
+                  >
+                    {q === "perfect" ? "⭐ Perfect" : q === "better" ? "👍 Better" : "👌 Good"}
+                  </button>
+                ))}
+              </div>
+
+              <div className="flex gap-2">
+                <Button
+                  onClick={confirmCaught}
+                  disabled={!selectedFielder}
+                  className="flex-1 rounded-xl bg-red-500 hover:bg-red-600 text-white text-sm disabled:opacity-40"
+                >
+                  Confirm Out
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => setShowCaughtModal(false)}
+                  className="rounded-xl border-white/[0.1] text-white/50 hover:text-white bg-transparent text-sm"
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Scoring Controls */}
         {!needsSetup && !selectingBatsman && !selectingBowler && (
           <div className="space-y-4 animate-fade-up">
@@ -490,23 +658,79 @@ export default function Scoring() {
               </div>
             </div>
 
-            {/* Extras */}
+            {/* Extras — No Ball, Wide, Bonus */}
             <div>
               <h4 className="text-xs font-bold text-white/40 uppercase tracking-wider mb-2">Extras</h4>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-3 gap-2">
+                {/* No Ball Dropdown */}
+                <div className="relative">
+                  <button
+                    disabled={processing}
+                    onClick={() => { setShowNoBallDropdown(!showNoBallDropdown); setShowWideDropdown(false); }}
+                    className="w-full rounded-xl py-3 text-sm font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20 hover:bg-amber-500/20 transition-all disabled:opacity-40 flex items-center justify-center gap-1"
+                  >
+                    No Ball <ChevronDown className="h-3.5 w-3.5" />
+                  </button>
+                  {showNoBallDropdown && (
+                    <div className="absolute top-full left-0 right-0 mt-1 z-50 rounded-xl border border-amber-500/20 bg-black/95 backdrop-blur-xl overflow-hidden shadow-lg shadow-amber-500/10">
+                      {[
+                        { label: "No Ball", runs: 0 },
+                        { label: "No Ball +1", runs: 1 },
+                        { label: "No Ball +2", runs: 2 },
+                      ].map((opt) => (
+                        <button
+                          key={opt.label}
+                          onClick={() => handleBall(opt.runs, "no_ball")}
+                          className="w-full px-4 py-2.5 text-sm font-medium text-amber-400 hover:bg-amber-500/15 transition-colors text-left border-b border-amber-500/10 last:border-0"
+                        >
+                          {opt.label}
+                          <span className="text-[10px] text-amber-400/50 ml-2">
+                            ({1 + opt.runs} runs)
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Wide Dropdown */}
+                <div className="relative">
+                  <button
+                    disabled={processing}
+                    onClick={() => { setShowWideDropdown(!showWideDropdown); setShowNoBallDropdown(false); }}
+                    className="w-full rounded-xl py-3 text-sm font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20 hover:bg-amber-500/20 transition-all disabled:opacity-40 flex items-center justify-center gap-1"
+                  >
+                    Wide <ChevronDown className="h-3.5 w-3.5" />
+                  </button>
+                  {showWideDropdown && (
+                    <div className="absolute top-full left-0 right-0 mt-1 z-50 rounded-xl border border-amber-500/20 bg-black/95 backdrop-blur-xl overflow-hidden shadow-lg shadow-amber-500/10">
+                      {[
+                        { label: "Wide", runs: 0 },
+                        { label: "Wide +1", runs: 1 },
+                        { label: "Wide +2", runs: 2 },
+                      ].map((opt) => (
+                        <button
+                          key={opt.label}
+                          onClick={() => handleBall(opt.runs, "wide")}
+                          className="w-full px-4 py-2.5 text-sm font-medium text-amber-400 hover:bg-amber-500/15 transition-colors text-left border-b border-amber-500/10 last:border-0"
+                        >
+                          {opt.label}
+                          <span className="text-[10px] text-amber-400/50 ml-2">
+                            ({1 + opt.runs} runs)
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Bonus Button */}
                 <button
                   disabled={processing}
-                  onClick={() => handleBall(0, "wide")}
-                  className="rounded-xl py-3 text-sm font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20 hover:bg-amber-500/20 transition-all disabled:opacity-40"
+                  onClick={() => handleBall(0, "bonus")}
+                  className="rounded-xl py-3 text-sm font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20 transition-all disabled:opacity-40 flex items-center justify-center gap-1"
                 >
-                  Wide
-                </button>
-                <button
-                  disabled={processing}
-                  onClick={() => handleBall(1, "no_ball")}
-                  className="rounded-xl py-3 text-sm font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20 hover:bg-amber-500/20 transition-all disabled:opacity-40"
-                >
-                  No Ball
+                  <Gift className="h-3.5 w-3.5" /> Bonus
                 </button>
               </div>
             </div>
@@ -514,17 +738,51 @@ export default function Scoring() {
             {/* Wickets */}
             <div>
               <h4 className="text-xs font-bold text-white/40 uppercase tracking-wider mb-2">Wicket</h4>
-              <div className="grid grid-cols-3 gap-2">
-                {["bowled", "caught", "run_out"].map((w) => (
-                  <button
-                    key={w}
-                    disabled={processing}
-                    onClick={() => handleBall(0, "none", w)}
-                    className="rounded-xl py-3 text-sm font-bold bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20 transition-all capitalize disabled:opacity-40"
-                  >
-                    {w.replace("_", " ")}
-                  </button>
-                ))}
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  disabled={processing || isFreeHit}
+                  onClick={() => handleBall(0, "none", "bowled")}
+                  className={`rounded-xl py-3 text-sm font-bold transition-all capitalize disabled:opacity-40 ${
+                    isFreeHit
+                      ? "bg-gray-500/10 text-gray-500 border border-gray-500/20 cursor-not-allowed"
+                      : "bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20"
+                  }`}
+                >
+                  Bowled
+                  {isFreeHit && <span className="block text-[9px] text-gray-500/70 mt-0.5">Not on Free Hit</span>}
+                </button>
+                <button
+                  disabled={processing || isFreeHit}
+                  onClick={handleCaughtClick}
+                  className={`rounded-xl py-3 text-sm font-bold transition-all capitalize disabled:opacity-40 ${
+                    isFreeHit
+                      ? "bg-gray-500/10 text-gray-500 border border-gray-500/20 cursor-not-allowed"
+                      : "bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20"
+                  }`}
+                >
+                  Caught
+                  {isFreeHit && <span className="block text-[9px] text-gray-500/70 mt-0.5">Not on Free Hit</span>}
+                </button>
+                <button
+                  disabled={processing}
+                  onClick={() => handleBall(0, "none", "run_out")}
+                  className="rounded-xl py-3 text-sm font-bold bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20 transition-all capitalize disabled:opacity-40"
+                >
+                  Run Out
+                  {isFreeHit && <span className="block text-[9px] text-emerald-400/70 mt-0.5">✓ Allowed</span>}
+                </button>
+                <button
+                  disabled={processing || isFreeHit}
+                  onClick={() => handleBall(0, "none", "hit_wicket")}
+                  className={`rounded-xl py-3 text-sm font-bold transition-all capitalize disabled:opacity-40 ${
+                    isFreeHit
+                      ? "bg-gray-500/10 text-gray-500 border border-gray-500/20 cursor-not-allowed"
+                      : "bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20"
+                  }`}
+                >
+                  Hit Wicket
+                  {isFreeHit && <span className="block text-[9px] text-gray-500/70 mt-0.5">Not on Free Hit</span>}
+                </button>
               </div>
             </div>
 
@@ -643,6 +901,14 @@ export default function Scoring() {
           </div>
         )}
       </main>
+
+      {/* Click outside to close dropdowns */}
+      {(showNoBallDropdown || showWideDropdown) && (
+        <div
+          className="fixed inset-0 z-40"
+          onClick={() => { setShowNoBallDropdown(false); setShowWideDropdown(false); }}
+        />
+      )}
     </div>
   );
 }
