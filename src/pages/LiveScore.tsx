@@ -16,7 +16,7 @@ interface InningsData {
 interface BallEvent {
   id: number; over_number: number; ball_number: number;
   runs: number; extra_type: string; wicket_type: string;
-  batsman_id: number; bowler_id: number; created_at: string;
+  batsman_id: number; bowler_id: number; innings_id: number; created_at: string;
 }
 interface MPlayer { player_id: number; team: string; is_captain: boolean; name: string; }
 interface PStats {
@@ -39,7 +39,7 @@ export default function LiveScore() {
     const [matchRes, inningsRes, ballsRes, playersRes, statsRes] = await Promise.all([
       supabase.from("matches").select("*").eq("id", numMatchId).single(),
       supabase.from("innings").select("*").eq("match_id", numMatchId).order("innings_number"),
-      supabase.from("ball_events").select("*").eq("match_id", numMatchId).order("created_at", { ascending: false }).limit(30),
+      supabase.from("ball_events").select("*").eq("match_id", numMatchId).order("created_at", { ascending: false }),
       supabase.from("match_players").select("player_id, team, is_captain, players(name)").eq("match_id", numMatchId),
       supabase.from("player_stats").select("*").eq("match_id", numMatchId),
     ]);
@@ -211,32 +211,65 @@ export default function LiveScore() {
           </div>
         )}
 
-        {/* Recent Balls */}
+        {/* Recent Balls — Grouped by Over */}
         {balls.length > 0 && (
           <div className="mb-6 animate-fade-up" style={{ animationDelay: "0.15s" }}>
-            <h4 className="text-xs font-bold text-white/40 uppercase tracking-wider mb-2">Recent Deliveries</h4>
-            <div className="flex gap-1.5 overflow-x-auto pb-1">
-              {balls.slice(0, 12).reverse().map((b) => (
-                <div
-                  key={b.id}
-                  className={`flex-shrink-0 h-9 w-9 rounded-lg flex items-center justify-center text-xs font-bold ${
-                    b.wicket_type !== "none"
-                      ? "bg-red-500/20 text-red-400 border border-red-500/30"
-                      : b.extra_type !== "none"
-                      ? "bg-amber-500/15 text-amber-400 border border-amber-500/20"
-                      : b.runs >= 4
-                      ? "bg-blue-500/15 text-blue-400 border border-blue-500/20"
-                      : "bg-white/[0.04] text-white/60 border border-white/[0.06]"
-                  }`}
-                >
-                  {b.wicket_type !== "none" ? "W" : b.extra_type !== "none" ? b.extra_type[0].toUpperCase() : b.runs}
+            <h4 className="text-xs font-bold text-white/40 uppercase tracking-wider mb-3">Recent Deliveries</h4>
+            {(() => {
+              // Group balls by over_number, show only current innings
+              const currentInnId = currentInnings?.id;
+              const inningsBalls = balls.filter(b => b.innings_id === currentInnId || !currentInnId);
+              const overMap = new Map<number, typeof balls>();
+              for (const b of inningsBalls) {
+                const arr = overMap.get(b.over_number) || [];
+                arr.push(b);
+                overMap.set(b.over_number, arr);
+              }
+              // Sort overs descending (latest first)
+              const overs = Array.from(overMap.entries()).sort((a, b) => b[0] - a[0]);
+              // Show last 3 overs max
+              const recentOvers = overs.slice(0, 3);
+
+              return (
+                <div className="space-y-3">
+                  {recentOvers.map(([overNum, overBalls], idx) => {
+                    const sortedBalls = [...overBalls].sort((a, b) => a.ball_number - b.ball_number);
+                    const overRuns = overBalls.reduce((sum, b) => sum + b.runs + (b.extra_type !== "none" ? 1 : 0), 0);
+                    const overWickets = overBalls.filter(b => b.wicket_type !== "none").length;
+                    return (
+                      <div key={overNum} className={`rounded-xl border px-3 py-2.5 ${idx === 0 ? "border-white/[0.08] bg-white/[0.03]" : "border-white/[0.04] bg-white/[0.01] opacity-60"}`}>
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-[10px] font-bold text-white/50 uppercase">Over {overNum + 1}</span>
+                          <span className="text-[10px] font-bold text-emerald-400/70">
+                            {overRuns} runs{overWickets > 0 ? ` · ${overWickets}W` : ""}
+                          </span>
+                        </div>
+                        <div className="flex gap-1.5 flex-wrap">
+                          {sortedBalls.map((b) => (
+                            <div
+                              key={b.id}
+                              className={`flex-shrink-0 h-9 w-9 rounded-lg flex items-center justify-center text-xs font-bold ${
+                                b.wicket_type !== "none"
+                                  ? "bg-red-500/20 text-red-400 border border-red-500/30"
+                                  : b.extra_type !== "none"
+                                  ? "bg-amber-500/15 text-amber-400 border border-amber-500/20"
+                                  : b.runs >= 4
+                                  ? "bg-blue-500/15 text-blue-400 border border-blue-500/20"
+                                  : "bg-white/[0.04] text-white/60 border border-white/[0.06]"
+                              }`}
+                            >
+                              {b.wicket_type !== "none" ? "W" : b.extra_type !== "none" ? b.extra_type[0].toUpperCase() : b.runs}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
-              ))}
-            </div>
+              );
+            })()}
           </div>
         )}
-
-        {/* Batting Card */}
         {battingStats.length > 0 && (
           <div className="mb-6 animate-fade-up" style={{ animationDelay: "0.2s" }}>
             <h4 className="text-xs font-bold text-white/40 uppercase tracking-wider mb-2">
