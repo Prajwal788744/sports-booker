@@ -59,6 +59,24 @@ export default function Scoring() {
     })));
     if (statsRes.data) setStats(statsRes.data);
   }, [numMatchId]);
+  // Already dismissed batsmen - must be declared BEFORE any early returns
+  const [dismissedIds, setDismissedIds] = useState<number[]>([]);
+
+  // Compute currentInningsId safely for effects (may be undefined during loading)
+  const currentInningsId = match && innings.length > 0
+    ? innings.find((i) => i.innings_number === match.current_innings)?.id
+    : undefined;
+
+  useEffect(() => {
+    if (!currentInningsId) return;
+    supabase.from("ball_events").select("batsman_id, wicket_type")
+      .eq("match_id", numMatchId)
+      .eq("innings_id", currentInningsId)
+      .neq("wicket_type", "none")
+      .then(({ data }) => {
+        if (data) setDismissedIds(data.map((d) => d.batsman_id));
+      });
+  }, [numMatchId, currentInningsId]);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
@@ -89,18 +107,6 @@ export default function Scoring() {
   // Check if we need to select batsmen/bowler first
   const needsSetup = strikerId === null || nonStrikerId === null || bowlerId === null;
 
-  // Already dismissed batsmen - find from ball_events
-  const [dismissedIds, setDismissedIds] = useState<number[]>([]);
-
-  useEffect(() => {
-    supabase.from("ball_events").select("batsman_id, wicket_type")
-      .eq("match_id", numMatchId)
-      .eq("innings_id", currentInnings?.id || 0)
-      .neq("wicket_type", "none")
-      .then(({ data }) => {
-        if (data) setDismissedIds(data.map((d) => d.batsman_id));
-      });
-  }, [numMatchId, currentInnings?.id, innings]);
 
   const availableBatsmen = battingPlayers.filter(
     (p) => !dismissedIds.includes(p.player_id) && p.player_id !== strikerId && p.player_id !== nonStrikerId
