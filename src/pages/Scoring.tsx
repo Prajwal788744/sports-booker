@@ -508,75 +508,84 @@ export default function Scoring() {
           </div>
         </div>
 
-        {/* Batsman / Bowler Selection Modal */}
-        {(selectingBatsman || selectingBowler) && (
-          <div className="mb-6 rounded-2xl border border-amber-500/20 bg-amber-500/[0.05] p-5 animate-fade-up">
-            <h3 className="text-sm font-bold text-amber-400 mb-1">
-              {selectingBatsman ? `Select ${selectingBatsman === "striker" ? "Striker" : "Non-Striker"}` : "Select Bowler"}
-            </h3>
-            <p className="text-xs text-white/40 mb-3 font-semibold">
-              {selectingBowler ? `from ${teamName(bowlingTeam)}` : `from ${teamName(battingTeam)}`}
-            </p>
-            <div className="grid grid-cols-2 gap-2">
-              {(selectingBowler ? bowlingPlayers : battingPlayers.filter((p) => p.player_id !== strikerId && p.player_id !== nonStrikerId)).map((p) => {
-                const isDismissed = !selectingBowler && dismissedIds.includes(p.player_id);
-                const pStats = getStats(p.player_id);
-                return (
-                  <button
-                    key={p.player_id}
-                    disabled={isDismissed}
-                    onClick={() => {
-                      if (isDismissed) return;
-                      if (selectingBatsman === "striker") {
-                        setStrikerId(p.player_id);
-                        if (!nonStrikerId) setSelectingBatsman("non_striker");
-                        else { setSelectingBatsman(null); if (!bowlerId) setSelectingBowler(true); }
-                      } else if (selectingBatsman === "non_striker") {
-                        setNonStrikerId(p.player_id);
-                        setSelectingBatsman(null);
-                        if (!bowlerId) setSelectingBowler(true);
-                      } else {
-                        setBowlerId(p.player_id);
-                        setSelectingBowler(false);
-                      }
-                    }}
-                    className={`rounded-xl border px-3 py-3 text-sm font-medium transition-all text-left ${
-                      isDismissed
-                        ? "bg-red-500/10 border-red-500/20 text-red-400/70 cursor-not-allowed opacity-60"
-                        : "bg-white/[0.04] border-white/[0.06] text-white/80 hover:bg-emerald-500/10 hover:border-emerald-500/20"
-                    }`}
-                  >
-                    <div className="flex items-center gap-2">
-                      {isDismissed && <XCircle className="h-3.5 w-3.5 text-red-400 flex-shrink-0" />}
-                      <span className={isDismissed ? "line-through" : ""}>{p.name}</span>
-                      {p.is_captain && <span className="text-amber-400 ml-1 text-[10px]">(C)</span>}
-                      {isDismissed && <span className="text-[10px] text-red-400/60 ml-auto">OUT</span>}
-                    </div>
-                    {selectingBowler && pStats && (
-                      <div className="text-[10px] text-white/30 mt-1">
-                        {getBowlerOvers(p.player_id)} ov · {pStats.wickets_taken}W · {pStats.runs_conceded}R
-                      </div>
-                    )}
-                    {!selectingBowler && !isDismissed && pStats && (pStats.runs_scored > 0 || pStats.balls_faced > 0) && (
-                      <div className="text-[10px] text-white/30 mt-1">
-                        {pStats.runs_scored}({pStats.balls_faced}) · {pStats.fours}×4 {pStats.sixes}×6
-                      </div>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        )}
+        {/* Batsman / Bowler Selection Modal — batsman selection always takes priority */}
+        {(selectingBatsman || selectingBowler) && (() => {
+          const isSelectingBat = !!selectingBatsman;
+          const listPlayers = isSelectingBat
+            ? battingPlayers.filter((p) => p.player_id !== strikerId && p.player_id !== nonStrikerId)
+            : bowlingPlayers;
+          const title = isSelectingBat
+            ? `Select ${selectingBatsman === "striker" ? "Striker" : "Non-Striker"}`
+            : "Select Bowler";
+          const subtitle = isSelectingBat
+            ? `from ${teamName(battingTeam)}`
+            : `from ${teamName(bowlingTeam)}`;
 
-        {/* Caught Modal */}
+          return (
+            <div className="mb-6 rounded-2xl border border-amber-500/20 bg-amber-500/[0.05] p-5 animate-fade-up">
+              <h3 className="text-sm font-bold text-amber-400 mb-1">{title}</h3>
+              <p className="text-xs text-white/40 mb-3 font-semibold">{subtitle}</p>
+              <div className="grid grid-cols-2 gap-2">
+                {listPlayers.map((p) => {
+                  const isDismissed = isSelectingBat && dismissedIds.includes(p.player_id);
+                  const pStats = getStats(p.player_id);
+                  return (
+                    <button
+                      key={p.player_id}
+                      disabled={isDismissed}
+                      onClick={() => {
+                        if (isDismissed) return;
+                        if (selectingBatsman === "striker") {
+                          setStrikerId(p.player_id);
+                          if (!nonStrikerId) setSelectingBatsman("non_striker");
+                          else { setSelectingBatsman(null); if (!bowlerId) setSelectingBowler(true); }
+                        } else if (selectingBatsman === "non_striker") {
+                          setNonStrikerId(p.player_id);
+                          setSelectingBatsman(null);
+                          if (!bowlerId) setSelectingBowler(true);
+                        } else {
+                          setBowlerId(p.player_id);
+                          setSelectingBowler(false);
+                        }
+                      }}
+                      className={`rounded-xl border px-3 py-3 text-sm font-medium transition-all text-left ${
+                        isDismissed
+                          ? "bg-red-500/10 border-red-500/20 text-red-400/70 cursor-not-allowed opacity-60"
+                          : "bg-white/[0.04] border-white/[0.06] text-white/80 hover:bg-emerald-500/10 hover:border-emerald-500/20"
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        {isDismissed && <XCircle className="h-3.5 w-3.5 text-red-400 flex-shrink-0" />}
+                        <span className={isDismissed ? "line-through" : ""}>{p.name}</span>
+                        {p.is_captain && <span className="text-amber-400 ml-1 text-[10px]">(C)</span>}
+                        {isDismissed && <span className="text-[10px] text-red-400/60 ml-auto">OUT</span>}
+                      </div>
+                      {!isSelectingBat && pStats && (
+                        <div className="text-[10px] text-white/30 mt-1">
+                          {getBowlerOvers(p.player_id)} ov · {pStats.wickets_taken}W · {pStats.runs_conceded}R
+                        </div>
+                      )}
+                      {isSelectingBat && !isDismissed && pStats && (pStats.runs_scored > 0 || pStats.balls_faced > 0) && (
+                        <div className="text-[10px] text-white/30 mt-1">
+                          {pStats.runs_scored}({pStats.balls_faced}) · {pStats.fours}×4 {pStats.sixes}×6
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* Caught Modal — moved outside main for proper z-index */}
         {showCaughtModal && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm">
-            <div className="w-[90%] max-w-md rounded-2xl border border-red-500/20 bg-black/95 p-6 animate-fade-up">
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm" style={{ position: 'fixed' }}>
+            <div className="w-[90%] max-w-md max-h-[85vh] overflow-y-auto rounded-2xl border border-red-500/20 bg-black/95 p-6 animate-fade-up">
               <h3 className="text-lg font-bold text-red-400 mb-1">🧤 Caught!</h3>
               <p className="text-xs text-white/40 mb-4">Who caught it from {teamName(bowlingTeam)}?</p>
 
-              <div className="grid grid-cols-2 gap-2 mb-5 max-h-48 overflow-y-auto">
+              <div className="grid grid-cols-2 gap-2 mb-5">
                 {bowlingPlayers.map((p) => (
                   <button
                     key={p.player_id}
@@ -661,18 +670,18 @@ export default function Scoring() {
             {/* Extras — No Ball, Wide, Bonus */}
             <div>
               <h4 className="text-xs font-bold text-white/40 uppercase tracking-wider mb-2">Extras</h4>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-3 gap-2" style={{ position: 'relative', zIndex: 60 }}>
                 {/* No Ball Dropdown */}
                 <div className="relative">
                   <button
                     disabled={processing}
-                    onClick={() => { setShowNoBallDropdown(!showNoBallDropdown); setShowWideDropdown(false); }}
+                    onClick={(e) => { e.stopPropagation(); setShowNoBallDropdown(!showNoBallDropdown); setShowWideDropdown(false); }}
                     className="w-full rounded-xl py-3 text-sm font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20 hover:bg-amber-500/20 transition-all disabled:opacity-40 flex items-center justify-center gap-1"
                   >
                     No Ball <ChevronDown className="h-3.5 w-3.5" />
                   </button>
                   {showNoBallDropdown && (
-                    <div className="absolute top-full left-0 right-0 mt-1 z-50 rounded-xl border border-amber-500/20 bg-black/95 backdrop-blur-xl overflow-hidden shadow-lg shadow-amber-500/10">
+                    <div className="absolute top-full left-0 right-0 mt-1 rounded-xl border border-amber-500/20 bg-black/95 backdrop-blur-xl overflow-hidden shadow-lg shadow-amber-500/10" style={{ zIndex: 9999, position: 'absolute' }}>
                       {[
                         { label: "No Ball", runs: 0 },
                         { label: "No Ball +1", runs: 1 },
@@ -680,7 +689,7 @@ export default function Scoring() {
                       ].map((opt) => (
                         <button
                           key={opt.label}
-                          onClick={() => handleBall(opt.runs, "no_ball")}
+                          onClick={(e) => { e.stopPropagation(); handleBall(opt.runs, "no_ball"); }}
                           className="w-full px-4 py-2.5 text-sm font-medium text-amber-400 hover:bg-amber-500/15 transition-colors text-left border-b border-amber-500/10 last:border-0"
                         >
                           {opt.label}
@@ -697,13 +706,13 @@ export default function Scoring() {
                 <div className="relative">
                   <button
                     disabled={processing}
-                    onClick={() => { setShowWideDropdown(!showWideDropdown); setShowNoBallDropdown(false); }}
+                    onClick={(e) => { e.stopPropagation(); setShowWideDropdown(!showWideDropdown); setShowNoBallDropdown(false); }}
                     className="w-full rounded-xl py-3 text-sm font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20 hover:bg-amber-500/20 transition-all disabled:opacity-40 flex items-center justify-center gap-1"
                   >
                     Wide <ChevronDown className="h-3.5 w-3.5" />
                   </button>
                   {showWideDropdown && (
-                    <div className="absolute top-full left-0 right-0 mt-1 z-50 rounded-xl border border-amber-500/20 bg-black/95 backdrop-blur-xl overflow-hidden shadow-lg shadow-amber-500/10">
+                    <div className="absolute top-full left-0 right-0 mt-1 rounded-xl border border-amber-500/20 bg-black/95 backdrop-blur-xl overflow-hidden shadow-lg shadow-amber-500/10" style={{ zIndex: 9999, position: 'absolute' }}>
                       {[
                         { label: "Wide", runs: 0 },
                         { label: "Wide +1", runs: 1 },
@@ -711,7 +720,7 @@ export default function Scoring() {
                       ].map((opt) => (
                         <button
                           key={opt.label}
-                          onClick={() => handleBall(opt.runs, "wide")}
+                          onClick={(e) => { e.stopPropagation(); handleBall(opt.runs, "wide"); }}
                           className="w-full px-4 py-2.5 text-sm font-medium text-amber-400 hover:bg-amber-500/15 transition-colors text-left border-b border-amber-500/10 last:border-0"
                         >
                           {opt.label}
@@ -902,10 +911,11 @@ export default function Scoring() {
         )}
       </main>
 
-      {/* Click outside to close dropdowns */}
+      {/* Click outside to close dropdowns — uses portal-level z-index below dropdown */}
       {(showNoBallDropdown || showWideDropdown) && (
         <div
-          className="fixed inset-0 z-40"
+          className="fixed inset-0"
+          style={{ zIndex: 55 }}
           onClick={() => { setShowNoBallDropdown(false); setShowWideDropdown(false); }}
         />
       )}
