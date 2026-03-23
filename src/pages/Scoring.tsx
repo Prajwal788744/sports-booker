@@ -196,8 +196,8 @@ export default function Scoring() {
 
     const isExtra = extraType !== "none";
     const isWicket = wicketType !== "none";
-    // Legal delivery: not a wide, not a no_ball, not a bonus
-    const validBall = extraType === "none";
+    // Legal delivery: not a wide, not a no_ball (bonus DOES count as a legal ball)
+    const validBall = extraType === "none" || extraType === "bonus";
 
     let newBalls = currentInnings.balls;
     let newOvers = currentInnings.overs;
@@ -448,7 +448,7 @@ export default function Scoring() {
         </div>
       </nav>
 
-      <main className="relative z-10 mx-auto max-w-2xl px-4 py-6">
+      <main className="relative mx-auto max-w-2xl px-4 py-6">
         {/* FREE HIT BANNER */}
         {isFreeHit && (
           <div className="mb-4 rounded-2xl border-2 border-amber-500/40 bg-gradient-to-r from-amber-500/20 via-orange-500/20 to-red-500/20 p-4 animate-pulse">
@@ -670,7 +670,7 @@ export default function Scoring() {
             {/* Extras — No Ball, Wide, Bonus */}
             <div>
               <h4 className="text-xs font-bold text-white/40 uppercase tracking-wider mb-2">Extras</h4>
-              <div className="grid grid-cols-3 gap-2" style={{ position: 'relative', zIndex: 60 }}>
+              <div className="grid grid-cols-3 gap-2 relative" style={{ zIndex: 60 }}>
                 {/* No Ball Dropdown */}
                 <div className="relative">
                   <button
@@ -681,7 +681,7 @@ export default function Scoring() {
                     No Ball <ChevronDown className="h-3.5 w-3.5" />
                   </button>
                   {showNoBallDropdown && (
-                    <div className="absolute top-full left-0 right-0 mt-1 rounded-xl border border-amber-500/20 bg-black/95 backdrop-blur-xl overflow-hidden shadow-lg shadow-amber-500/10" style={{ zIndex: 9999, position: 'absolute' }}>
+                    <div className="absolute top-full left-0 right-0 mt-1 rounded-xl border border-amber-500/20 bg-black/95 backdrop-blur-xl overflow-hidden shadow-lg shadow-amber-500/10" style={{ zIndex: 9999 }}>
                       {[
                         { label: "No Ball", runs: 0 },
                         { label: "No Ball +1", runs: 1 },
@@ -712,7 +712,7 @@ export default function Scoring() {
                     Wide <ChevronDown className="h-3.5 w-3.5" />
                   </button>
                   {showWideDropdown && (
-                    <div className="absolute top-full left-0 right-0 mt-1 rounded-xl border border-amber-500/20 bg-black/95 backdrop-blur-xl overflow-hidden shadow-lg shadow-amber-500/10" style={{ zIndex: 9999, position: 'absolute' }}>
+                    <div className="absolute top-full left-0 right-0 mt-1 rounded-xl border border-amber-500/20 bg-black/95 backdrop-blur-xl overflow-hidden shadow-lg shadow-amber-500/10" style={{ zIndex: 9999 }}>
                       {[
                         { label: "Wide", runs: 0 },
                         { label: "Wide +1", runs: 1 },
