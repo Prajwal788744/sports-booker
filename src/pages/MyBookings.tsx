@@ -5,7 +5,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { GlowingEffect } from "@/components/ui/glowing-effect";
 import { toast } from "sonner";
-import { X, ArrowRightLeft, Clock, CalendarCheck, Trophy, ArrowLeft, AlertTriangle, Gamepad2 } from "lucide-react";
+import { X, ArrowRightLeft, Clock, CalendarCheck, Trophy, ArrowLeft, AlertTriangle, Gamepad2, Eye } from "lucide-react";
 import { format, addDays } from "date-fns";
 
 const sportNames: Record<number, { name: string; icon: string }> = {
@@ -72,6 +72,7 @@ export default function MyBookings() {
   const { user, signOut } = useAuth();
   const [bookings, setBookings] = useState<BookingRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [matchStatuses, setMatchStatuses] = useState<Record<number, { matchId: number; status: string }>>({});
 
   // Postpone modal state
   const [postponeBooking, setPostponeBooking] = useState<BookingRow | null>(null);
@@ -89,7 +90,30 @@ export default function MyBookings() {
       .eq("user_id", user.id)
       .order("date", { ascending: true })
       .order("start_time", { ascending: true });
-    if (data) setBookings(data);
+    if (data) {
+      setBookings(data);
+
+      // Fetch match statuses for cricket bookings
+      const cricketBookingIds = data.filter(b => b.sport_id === 1).map(b => b.id);
+      if (cricketBookingIds.length > 0) {
+        const { data: matches } = await supabase
+          .from("matches")
+          .select("id, booking_id, status")
+          .in("booking_id", cricketBookingIds);
+        if (matches) {
+          const statusMap: Record<number, { matchId: number; status: string }> = {};
+          for (const m of matches) {
+            if (m.booking_id) {
+              // Keep the most recent / most relevant match per booking
+              if (!statusMap[m.booking_id] || m.status === "completed" || m.status === "ongoing") {
+                statusMap[m.booking_id] = { matchId: m.id, status: m.status };
+              }
+            }
+          }
+          setMatchStatuses(statusMap);
+        }
+      }
+    }
     setLoading(false);
   };
 
@@ -217,8 +241,10 @@ export default function MyBookings() {
     }
   };
 
-  const activeBookings = bookings.filter((b) => b.status === "booked");
-  const pastBookings = bookings.filter((b) => b.status !== "booked");
+  const isMatchCompleted = (bookingId: number) => matchStatuses[bookingId]?.status === "completed";
+
+  const activeBookings = bookings.filter((b) => b.status === "booked" && !isMatchCompleted(b.id));
+  const pastBookings = bookings.filter((b) => b.status !== "booked" || isMatchCompleted(b.id));
 
   return (
     <div className="min-h-screen bg-black/[0.96] text-white">
@@ -378,21 +404,35 @@ export default function MyBookings() {
                 <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                   {pastBookings.map((b) => {
                     const sportInfo = sportNames[b.sport_id] || { name: "Sport", icon: "🏅" };
+                    const completed = isMatchCompleted(b.id);
+                    const matchInfo = matchStatuses[b.id];
                     return (
                       <li key={b.id} className="list-none">
-                        <div className="rounded-xl border border-white/[0.04] bg-white/[0.02] p-4 opacity-60">
+                        <div className="rounded-xl border border-white/[0.04] bg-white/[0.02] p-4 opacity-60 hover:opacity-80 transition-opacity">
                           <div className="flex items-center justify-between mb-2">
                             <div className="flex items-center gap-2">
                               <span>{sportInfo.icon}</span>
                               <span className="font-semibold text-white/60 text-sm">{sportInfo.name}</span>
                             </div>
-                            <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold border ${getStatusStyles(b.status)}`}>
-                              {b.status}
+                            <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold border ${
+                              completed
+                                ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+                                : getStatusStyles(b.status)
+                            }`}>
+                              {completed ? "Match Done" : b.status}
                             </span>
                           </div>
                           <div className="text-xs text-white/30">
                             {formatDate(b.date)} · {formatTime(b.start_time)} – {formatTime(b.end_time)}
                           </div>
+                          {completed && matchInfo && (
+                            <button
+                              onClick={() => navigate(`/live/${matchInfo.matchId}`)}
+                              className="mt-3 flex items-center gap-1.5 text-xs text-emerald-400/70 hover:text-emerald-400 transition-colors font-semibold"
+                            >
+                              <Eye className="h-3 w-3" /> View Scorecard →
+                            </button>
+                          )}
                         </div>
                       </li>
                     );
