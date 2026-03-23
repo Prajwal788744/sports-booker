@@ -3,7 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Trophy, Circle, ChevronRight, Award } from "lucide-react";
+import { ArrowLeft, Trophy, Circle, ChevronRight, Award, XCircle } from "lucide-react";
 import { toast } from "sonner";
 
 interface MatchData {
@@ -15,6 +15,11 @@ interface MatchData {
 interface InningsData {
   id: number; innings_number: number; team: string;
   runs: number; wickets: number; overs: number; balls: number; status: string;
+}
+interface BallEvent {
+  id: number; over_number: number; ball_number: number;
+  runs: number; extra_type: string; wicket_type: string;
+  batsman_id: number; bowler_id: number; innings_id: number;
 }
 interface MPlayer { player_id: number; team: string; is_captain: boolean; name: string; }
 interface PStats {
@@ -32,6 +37,7 @@ export default function Scoring() {
   const [innings, setInnings] = useState<InningsData[]>([]);
   const [players, setPlayers] = useState<MPlayer[]>([]);
   const [stats, setStats] = useState<PStats[]>([]);
+  const [balls, setBalls] = useState<BallEvent[]>([]);
 
   // Current state
   const [strikerId, setStrikerId] = useState<number | null>(null);
@@ -43,14 +49,14 @@ export default function Scoring() {
 
   // End match
   const [showEndMatch, setShowEndMatch] = useState(false);
-  const [motm, setMotm] = useState<number | null>(null);
 
   const fetchAll = useCallback(async () => {
-    const [matchRes, inningsRes, playersRes, statsRes] = await Promise.all([
+    const [matchRes, inningsRes, playersRes, statsRes, ballsRes] = await Promise.all([
       supabase.from("matches").select("*").eq("id", numMatchId).single(),
       supabase.from("innings").select("*").eq("match_id", numMatchId).order("innings_number"),
       supabase.from("match_players").select("player_id, team, is_captain, players(name)").eq("match_id", numMatchId),
       supabase.from("player_stats").select("*").eq("match_id", numMatchId),
+      supabase.from("ball_events").select("*").eq("match_id", numMatchId),
     ]);
     if (matchRes.data) setMatch(matchRes.data);
     if (inningsRes.data) setInnings(inningsRes.data);
@@ -58,7 +64,25 @@ export default function Scoring() {
       player_id: p.player_id, team: p.team, is_captain: p.is_captain, name: p.players?.name || "?",
     })));
     if (statsRes.data) setStats(statsRes.data);
+    if (ballsRes.data) setBalls(ballsRes.data);
   }, [numMatchId]);
+
+  // Auto-compute Man of the Match based on player performance
+  const computeMotm = useCallback(() => {
+    if (stats.length === 0) return null;
+    let bestId: number | null = null;
+    let bestScore = -Infinity;
+    for (const s of stats) {
+      const battingScore = s.runs_scored * 1 + s.fours * 1 + s.sixes * 2;
+      const bowlingScore = s.wickets_taken * 25 - s.runs_conceded * 0.5;
+      const total = battingScore + bowlingScore;
+      if (total > bestScore) {
+        bestScore = total;
+        bestId = s.player_id;
+      }
+    }
+    return bestId;
+  }, [stats]);
   // Already dismissed batsmen - must be declared BEFORE any early returns
   const [dismissedIds, setDismissedIds] = useState<number[]>([]);
 
@@ -103,6 +127,18 @@ export default function Scoring() {
   const getStats = (id: number) => stats.find((s) => s.player_id === id);
 
   const oversDisplay = `${currentInnings.overs}.${currentInnings.balls}`;
+
+  // Compute bowler ball counts from ball_events for the current innings
+  const bowlerBallCounts: Record<number, number> = {};
+  for (const b of balls) {
+    if (b.innings_id === currentInnings.id && b.extra_type === "none") {
+      bowlerBallCounts[b.bowler_id] = (bowlerBallCounts[b.bowler_id] || 0) + 1;
+    }
+  }
+  const getBowlerOvers = (id: number) => {
+    const totalBalls = bowlerBallCounts[id] || 0;
+    return `${Math.floor(totalBalls / 6)}.${totalBalls % 6}`;
+  };
 
   // Check if we need to select batsmen/bowler first
   const needsSetup = strikerId === null || nonStrikerId === null || bowlerId === null;
@@ -226,7 +262,9 @@ export default function Scoring() {
         else if (inn2Runs < inn1Runs) winner = firstBattingTeam;
         else winner = "tie";
 
-        await supabase.from("matches").update({ status: "completed", winner }).eq("id", numMatchId);
+        // Auto-compute MOTM
+        const motmId = computeMotm();
+        await supabase.from("matches").update({ status: "completed", winner, man_of_match: motmId }).eq("id", numMatchId);
         toast.success(`Match over! ${winner === "tie" ? "It's a tie!" : `${teamName(winner)} wins!`}`);
       }
     }
@@ -254,11 +292,14 @@ export default function Scoring() {
     else if (r2 > r1) winner = team2;
     else winner = "tie";
 
+    // Auto-compute MOTM
+    const motmId = computeMotm();
+
     await supabase.from("innings").update({ status: "completed" }).eq("match_id", numMatchId);
     await supabase.from("matches").update({
       status: "completed",
       winner,
-      man_of_match: motm,
+      man_of_match: motmId,
     }).eq("id", numMatchId);
 
     toast.success(`Match ended! ${winner === "tie" ? "It's a tie!" : `${teamName(winner)} wins!`}`);
@@ -339,7 +380,12 @@ export default function Scoring() {
           <div className="rounded-xl bg-white/[0.03] border border-white/[0.06] p-3">
             <p className="text-[10px] text-white/40 uppercase font-bold mb-1">Bowler</p>
             <p className="text-sm font-bold text-white truncate">{getPlayerName(bowlerId)}</p>
-            {bowlerId && <p className="text-xs text-red-400 font-semibold">{getStats(bowlerId)?.wickets_taken || 0}-{getStats(bowlerId)?.runs_conceded || 0}</p>}
+            {bowlerId && (
+              <div>
+                <p className="text-xs text-red-400 font-semibold">{getStats(bowlerId)?.wickets_taken || 0}-{getStats(bowlerId)?.runs_conceded || 0}</p>
+                <p className="text-[10px] text-white/30 font-medium">{getBowlerOvers(bowlerId)} ov</p>
+              </div>
+            )}
           </div>
         </div>
 
@@ -350,29 +396,40 @@ export default function Scoring() {
               {selectingBatsman ? `Select ${selectingBatsman === "striker" ? "Striker" : "Non-Striker"}` : "Select Bowler"}
             </h3>
             <div className="grid grid-cols-2 gap-2">
-              {(selectingBowler ? bowlingPlayers : availableBatsmen).map((p) => (
-                <button
-                  key={p.player_id}
-                  onClick={() => {
-                    if (selectingBatsman === "striker") {
-                      setStrikerId(p.player_id);
-                      if (!nonStrikerId) setSelectingBatsman("non_striker");
-                      else { setSelectingBatsman(null); if (!bowlerId) setSelectingBowler(true); }
-                    } else if (selectingBatsman === "non_striker") {
-                      setNonStrikerId(p.player_id);
-                      setSelectingBatsman(null);
-                      if (!bowlerId) setSelectingBowler(true);
-                    } else {
-                      setBowlerId(p.player_id);
-                      setSelectingBowler(false);
-                    }
-                  }}
-                  className="rounded-xl bg-white/[0.04] border border-white/[0.06] px-3 py-3 text-sm font-medium text-white/80 hover:bg-emerald-500/10 hover:border-emerald-500/20 transition-all text-left"
-                >
-                  {p.name}
-                  {p.is_captain && <span className="text-amber-400 ml-1 text-[10px]">(C)</span>}
-                </button>
-              ))}
+              {(selectingBowler ? bowlingPlayers : battingPlayers.filter((p) => p.player_id !== strikerId && p.player_id !== nonStrikerId)).map((p) => {
+                const isDismissed = !selectingBowler && dismissedIds.includes(p.player_id);
+                return (
+                  <button
+                    key={p.player_id}
+                    disabled={isDismissed}
+                    onClick={() => {
+                      if (isDismissed) return;
+                      if (selectingBatsman === "striker") {
+                        setStrikerId(p.player_id);
+                        if (!nonStrikerId) setSelectingBatsman("non_striker");
+                        else { setSelectingBatsman(null); if (!bowlerId) setSelectingBowler(true); }
+                      } else if (selectingBatsman === "non_striker") {
+                        setNonStrikerId(p.player_id);
+                        setSelectingBatsman(null);
+                        if (!bowlerId) setSelectingBowler(true);
+                      } else {
+                        setBowlerId(p.player_id);
+                        setSelectingBowler(false);
+                      }
+                    }}
+                    className={`rounded-xl border px-3 py-3 text-sm font-medium transition-all text-left flex items-center gap-2 ${
+                      isDismissed
+                        ? "bg-red-500/10 border-red-500/20 text-red-400/70 cursor-not-allowed opacity-60"
+                        : "bg-white/[0.04] border-white/[0.06] text-white/80 hover:bg-emerald-500/10 hover:border-emerald-500/20"
+                    }`}
+                  >
+                    {isDismissed && <XCircle className="h-3.5 w-3.5 text-red-400 flex-shrink-0" />}
+                    <span className={isDismissed ? "line-through" : ""}>{p.name}</span>
+                    {p.is_captain && <span className="text-amber-400 ml-1 text-[10px]">(C)</span>}
+                    {isDismissed && <span className="text-[10px] text-red-400/60 ml-auto">OUT</span>}
+                  </button>
+                );
+              })}
             </div>
           </div>
         )}
@@ -452,22 +509,8 @@ export default function Scoring() {
                 </button>
               ) : (
                 <div className="rounded-xl border border-red-500/20 bg-red-500/[0.05] p-4 space-y-3">
-                  <p className="text-sm text-white/60 font-semibold">Select Man of the Match (optional)</p>
-                  <div className="flex flex-wrap gap-2">
-                    {players.map((p) => (
-                      <button
-                        key={p.player_id}
-                        onClick={() => setMotm(p.player_id)}
-                        className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors border ${
-                          motm === p.player_id
-                            ? "bg-amber-500/20 text-amber-400 border-amber-500/30"
-                            : "bg-white/[0.04] text-white/50 border-white/[0.06] hover:bg-white/[0.06]"
-                        }`}
-                      >
-                        {p.name}
-                      </button>
-                    ))}
-                  </div>
+                  <p className="text-sm text-white/60 font-semibold">Are you sure you want to end this match?</p>
+                  <p className="text-xs text-white/40">Man of the Match will be auto-selected based on performance.</p>
                   <div className="flex gap-2">
                     <Button onClick={endMatch} className="flex-1 rounded-xl bg-red-500 hover:bg-red-600 text-white text-sm">
                       <Award className="h-4 w-4 mr-1" /> End Match

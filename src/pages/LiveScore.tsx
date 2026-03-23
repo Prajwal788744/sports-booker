@@ -87,6 +87,18 @@ export default function LiveScore() {
     .filter((s) => s.runs_conceded > 0 || s.wickets_taken > 0)
     .sort((a, b) => b.wickets_taken - a.wickets_taken);
 
+  // Compute bowler ball counts from ball_events
+  const bowlerBallCounts: Record<number, number> = {};
+  for (const b of balls) {
+    if (b.extra_type === "none" || b.extra_type === undefined) {
+      bowlerBallCounts[b.bowler_id] = (bowlerBallCounts[b.bowler_id] || 0) + 1;
+    }
+  }
+  const getBowlerOvers = (id: number) => {
+    const totalBalls = bowlerBallCounts[id] || 0;
+    return `${Math.floor(totalBalls / 6)}.${totalBalls % 6}`;
+  };
+
   const lastBall = balls[0];
   const lastBallText = lastBall
     ? lastBall.wicket_type !== "none"
@@ -255,14 +267,16 @@ export default function LiveScore() {
               Bowling
             </h4>
             <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] overflow-hidden">
-              <div className="grid grid-cols-4 text-[10px] font-bold text-white/30 uppercase px-4 py-2 border-b border-white/[0.04]">
+              <div className="grid grid-cols-5 text-[10px] font-bold text-white/30 uppercase px-4 py-2 border-b border-white/[0.04]">
                 <span className="col-span-2">Bowler</span>
+                <span className="text-center">Ov</span>
                 <span className="text-center">W</span>
                 <span className="text-center">Runs</span>
               </div>
               {bowlingStats.map((s) => (
-                <div key={s.player_id} className="grid grid-cols-4 text-sm px-4 py-2 border-b border-white/[0.02] last:border-0">
+                <div key={s.player_id} className="grid grid-cols-5 text-sm px-4 py-2 border-b border-white/[0.02] last:border-0">
                   <span className="col-span-2 font-medium text-white/70 truncate">{getPlayerName(s.player_id)}</span>
+                  <span className="text-center text-white/40">{getBowlerOvers(s.player_id)}</span>
                   <span className="text-center font-bold text-white">{s.wickets_taken}</span>
                   <span className="text-center text-white/40">{s.runs_conceded}</span>
                 </div>
