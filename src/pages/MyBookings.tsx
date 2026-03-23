@@ -316,21 +316,26 @@ export default function MyBookings() {
                                   variant="outline"
                                   className="flex-1 rounded-xl border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/10 hover:text-emerald-300 hover:border-emerald-500/30 transition-all duration-200 bg-transparent"
                                   onClick={async () => {
-                                    // Check if match already exists for this booking
-                                    const { data: existingMatch } = await supabase
+                                    // Find existing match for this booking (prefer one with players)
+                                    const { data: existingMatches } = await supabase
                                       .from("matches")
                                       .select("id, status")
                                       .eq("booking_id", b.id)
-                                      .order("created_at", { ascending: false })
-                                      .limit(1)
-                                      .single();
-                                    if (existingMatch) {
-                                      if (existingMatch.status === "completed") {
-                                        navigate(`/live/${existingMatch.id}`);
-                                      } else if (existingMatch.status === "ongoing") {
-                                        navigate(`/scoring/${existingMatch.id}`);
+                                      .order("created_at", { ascending: false });
+                                    
+                                    let target = null;
+                                    if (existingMatches && existingMatches.length > 0) {
+                                      // Pick the first one (most recent)
+                                      target = existingMatches[0];
+                                    }
+                                    
+                                    if (target) {
+                                      if (target.status === "completed") {
+                                        navigate(`/live/${target.id}`);
+                                      } else if (target.status === "ongoing") {
+                                        navigate(`/scoring/${target.id}`);
                                       } else {
-                                        navigate(`/team-setup/${existingMatch.id}`);
+                                        navigate(`/team-setup/${target.id}`);
                                       }
                                     } else {
                                       navigate(`/create-match/${b.id}`);
