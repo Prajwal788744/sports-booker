@@ -4,11 +4,16 @@ import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { GlowingEffect } from "@/components/ui/glowing-effect";
-import { ArrowLeft, Trophy, UserPlus, Star, Trash2, Play } from "lucide-react";
+import { ArrowLeft, Trophy, UserPlus, Star, Trash2, Play, Search, Filter } from "lucide-react";
 import { toast } from "sonner";
 
-interface Player { id: number; name: string; phone?: string; }
 interface MatchPlayer { player_id: number; team: string; is_captain: boolean; name: string; }
+interface UserOption {
+  id: string;
+  name: string | null;
+  reg_no: string | null;
+  department: string | null;
+}
 
 export default function TeamSetup() {
   const { matchId } = useParams();
@@ -20,8 +25,12 @@ export default function TeamSetup() {
   const [match, setMatch] = useState<any>(null);
   const [matchPlayers, setMatchPlayers] = useState<MatchPlayer[]>([]);
   const [selectedTeam, setSelectedTeam] = useState<"A" | "B">("A");
-  const [newName, setNewName] = useState("");
-  const [newPhone, setNewPhone] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [userOptions, setUserOptions] = useState<UserOption[]>([]);
+  const [departmentFilter, setDepartmentFilter] = useState<string>("my_department");
+  const [myDepartment, setMyDepartment] = useState<string | null>(null);
+  const [departments, setDepartments] = useState<string[]>([]);
+  const [loadingUsers, setLoadingUsers] = useState(false);
   const [starting, setStarting] = useState(false);
   const [authorized, setAuthorized] = useState<boolean | null>(null);
 
@@ -160,41 +169,134 @@ export default function TeamSetup() {
     }
   };
 
-  const addPlayer = async () => {
-    if (!user || !newName.trim()) return;
+  const fetchMyDepartment = async () => {
+    if (!user) return;
+    const { data } = await supabase.from("users").select("department").eq("id", user.id).single();
+    setMyDepartment(data?.department || null);
+  };
 
-    // Create player
-    const { data: player, error: pErr } = await supabase.from("players").insert({
-      user_id: user.id,
-      name: newName.trim(),
-      phone: newPhone.trim() || null,
-    }).select("id, name, phone").single();
-    if (pErr || !player) return toast.error(pErr?.message || "Failed to add player");
+  const fetchDepartments = async () => {
+    const { data } = await supabase.from("users").select("department").not("department", "is", null);
+    if (!data) return;
+    const unique = Array.from(
+      new Set(
+        data
+          .map((u: any) => u.department)
+          .filter((d: string | null) => !!d)
+      )
+    ) as string[];
+    setDepartments(unique);
+  };
 
-    // Assign to selected team
-    const { error: mpErr } = await supabase.from("match_players").insert({
+  const fetchUsers = async (term: string) => {
+    const q = term.trim();
+    if (!q) {
+      setUserOptions([]);
+      return;
+    }
+    setLoadingUsers(true);
+    let query = supabase
+      .from("users")
+      .select("id, name, reg_no, department")
+      .or(`name.ilike.%${q}%,reg_no.ilike.%${q}%`)
+      .limit(20);
+
+    if (departmentFilter === "my_department") {
+      if (myDepartment) query = query.eq("department", myDepartment);
+    } else if (departmentFilter !== "all") {
+      query = query.eq("department", departmentFilter);
+    }
+
+    const { data, error } = await query;
+    setLoadingUsers(false);
+    if (error) {
+      toast.error(error.message || "Failed to search players");
+      return;
+    }
+    setUserOptions((data || []) as UserOption[]);
+  };
+
+  useEffect(() => {
+    fetchMyDepartment();
+    fetchDepartments();
+  }, [user]);
+
+  useEffect(() => {
+    const id = setTimeout(() => {
+      fetchUsers(searchTerm);
+    }, 250);
+    return () => clearTimeout(id);
+  }, [searchTerm, departmentFilter, myDepartment]);
+
+  const addUserToTeam = async (selectedUser: UserOption) => {
+    if (!user) return;
+    if (!selectedUser.name) return toast.error("Invalid user");
+
+    let playerId: number | null = null;
+    const { data: existingPlayer } = await supabase
+      .from("players")
+      .select("id")
+      .eq("user_id", selectedUser.id)
+      .single();
+
+    if (existingPlayer?.id) {
+      playerId = existingPlayer.id;
+    } else {
+      const { data: createdPlayer, error: createErr } = await supabase
+        .from("players")
+        .insert({
+          user_id: selectedUser.id,
+          name: selectedUser.name,
+          phone: null,
+        })
+        .select("id")
+        .single();
+      if (createErr || !createdPlayer) return toast.error(createErr?.message || "Failed to create player profile");
+      playerId = createdPlayer.id;
+    }
+
+    const alreadyInTeam = matchPlayers.find((mp) => mp.player_id === playerId);
+    if (alreadyInTeam?.team === selectedTeam) {
+      toast.error(`${selectedUser.name} is already in ${selectedTeamName}`);
+      return;
+    }
+
+    // If player is in opposite team, create approval request
+    if (alreadyInTeam && alreadyInTeam.team !== selectedTeam) {
+      const { error: reqErr } = await supabase.from("team_join_requests").insert({
+        match_id: numMatchId,
+        player_id: playerId,
+        requested_by: user.id,
+        from_team: alreadyInTeam.team,
+        to_team: selectedTeam,
+        status: "pending",
+      });
+      if (reqErr) {
+        toast.error(reqErr.message || "Failed to send team switch request");
+        return;
+      }
+      toast.success(`Request sent to ${selectedUser.name}`);
+      setSearchTerm("");
+      setUserOptions([]);
+      return;
+    }
+
+    const { error: addErr } = await supabase.from("match_players").insert({
       match_id: numMatchId,
-      player_id: player.id,
+      player_id: playerId,
       team: selectedTeam,
       is_captain: false,
     });
-    if (mpErr) return toast.error(mpErr.message);
+    if (addErr) return toast.error(addErr.message || "Failed to add player");
 
-    setMatchPlayers((prev) => [...prev, {
-      player_id: player.id, team: selectedTeam, is_captain: false, name: player.name,
-    }]);
-
-    // Clear only inputs, keep team selected
-    setNewName("");
-    setNewPhone("");
+    setMatchPlayers((prev) => [
+      ...prev,
+      { player_id: playerId as number, team: selectedTeam, is_captain: false, name: selectedUser.name as string },
+    ]);
+    toast.success(`${selectedUser.name} added to ${selectedTeamName}`);
+    setSearchTerm("");
+    setUserOptions([]);
     nameRef.current?.focus();
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      addPlayer();
-    }
   };
 
   const removePlayer = async (playerId: number) => {
@@ -333,36 +435,59 @@ export default function TeamSetup() {
               Adding players to: <span className={selectedTeam === "A" ? "text-blue-400" : "text-orange-400"}>{selectedTeamName}</span>
             </h3>
           </div>
-          <div className="flex gap-2">
+          <div className="mb-2 flex items-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.03] px-3 py-2">
+            <Filter className="h-4 w-4 text-white/40" />
+            <span className="text-xs font-semibold text-white/40">Department:</span>
+            <select
+              value={departmentFilter}
+              onChange={(e) => setDepartmentFilter(e.target.value)}
+              className="flex-1 rounded-lg border border-white/[0.08] bg-white/[0.04] px-2 py-1.5 text-xs text-white focus:outline-none focus:border-emerald-500/40"
+            >
+              <option value="my_department">My Department</option>
+              <option value="all">All Departments</option>
+              {departments.map((dept) => (
+                <option key={dept} value={dept}>{dept}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="relative">
+            <Search className="absolute left-3 top-3.5 h-4 w-4 text-white/30" />
             <input
               ref={nameRef}
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="Player name"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Search player by name or registration number"
               autoFocus
-              className="flex-1 rounded-xl bg-white/[0.05] border border-white/[0.08] text-white px-4 py-3 text-sm focus:outline-none focus:border-emerald-500/50 placeholder:text-white/20 transition-colors"
+              className="w-full rounded-xl bg-white/[0.05] border border-white/[0.08] text-white pl-10 pr-4 py-3 text-sm focus:outline-none focus:border-emerald-500/50 placeholder:text-white/20 transition-colors"
             />
-            <input
-              value={newPhone}
-              onChange={(e) => setNewPhone(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="Phone (optional)"
-              className="w-32 sm:w-40 rounded-xl bg-white/[0.05] border border-white/[0.08] text-white px-4 py-3 text-sm focus:outline-none focus:border-emerald-500/50 placeholder:text-white/20 transition-colors"
-            />
-            <Button
-              onClick={addPlayer}
-              disabled={!newName.trim()}
-              className={`rounded-xl px-5 text-white font-semibold disabled:opacity-30 ${selectedTeam === "A"
-                  ? "bg-blue-500 hover:bg-blue-600"
-                  : "bg-orange-500 hover:bg-orange-600"
-                }`}
-            >
-              <UserPlus className="h-4 w-4 sm:mr-1" />
-              <span className="hidden sm:inline">Add</span>
-            </Button>
+
+            {searchTerm.trim() && (
+              <div className="absolute z-30 mt-2 w-full overflow-hidden rounded-xl border border-white/[0.08] bg-black/95 backdrop-blur-xl shadow-2xl">
+                {loadingUsers ? (
+                  <div className="px-4 py-3 text-xs text-white/40">Searching players...</div>
+                ) : userOptions.length === 0 ? (
+                  <div className="px-4 py-3 text-xs text-white/40">No users found for this filter.</div>
+                ) : (
+                  userOptions.map((u) => (
+                    <button
+                      key={u.id}
+                      onClick={() => addUserToTeam(u)}
+                      className="w-full border-b border-white/[0.05] px-4 py-3 text-left transition-colors hover:bg-white/[0.06] last:border-0"
+                    >
+                      <div className="text-sm font-medium text-white">{u.name || "Unnamed user"}</div>
+                      <div className="text-[11px] text-white/40">
+                        {u.reg_no || "No reg no"} {u.department ? `• ${u.department}` : ""}
+                      </div>
+                    </button>
+                  ))
+                )}
+              </div>
+            )}
           </div>
-          <p className="text-[10px] text-white/20 mt-1.5">Press Enter to quickly add players</p>
+          <p className="text-[10px] text-white/20 mt-1.5">
+            Players must have an account. If already in the other team, request approval is sent.
+          </p>
         </div>
 
         {/* Team Rosters */}

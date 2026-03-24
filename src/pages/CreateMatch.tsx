@@ -43,6 +43,7 @@ export default function CreateMatch() {
 
   const handleCreate = async () => {
     if (!user) return toast.error("Please log in");
+    if (!bookingId) return toast.error("Create match is allowed only from a cricket booking");
     if (!authorized) return toast.error("Only the booking owner can create a match");
     if (!teamAName.trim() || !teamBName.trim()) return toast.error("Enter both team names");
     if (totalOvers < 1 || totalOvers > 90) return toast.error("Overs must be 1-90");
@@ -69,11 +70,8 @@ export default function CreateMatch() {
       return;
     }
 
-    // Sync team name to user profile (set Team A as user's team if not already set)
-    const { data: userData } = await supabase.from("users").select("team_name").eq("id", user.id).single();
-    if (!userData?.team_name) {
-      await supabase.from("users").update({ team_name: teamAName.trim() }).eq("id", user.id);
-    }
+    // Sync team name to user profile for match creator
+    await supabase.from("users").update({ team_name: teamAName.trim() }).eq("id", user.id);
 
     toast.success("Match created!");
     navigate(`/team-setup/${data.id}`);

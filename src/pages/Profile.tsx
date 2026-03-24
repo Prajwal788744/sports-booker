@@ -11,6 +11,7 @@ interface ProfileData {
   reg_no: string;
   team_name: string;
   avatar_url: string;
+  department: string;
 }
 
 export default function Profile() {
@@ -19,7 +20,7 @@ export default function Profile() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [profile, setProfile] = useState<ProfileData>({
-    name: "", email: "", reg_no: "", team_name: "", avatar_url: "",
+    name: "", email: "", reg_no: "", team_name: "", avatar_url: "", department: "",
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -31,7 +32,7 @@ export default function Profile() {
     const fetchProfile = async () => {
       const { data } = await supabase
         .from("users")
-        .select("name, email, reg_no, team_name, avatar_url")
+        .select("name, email, reg_no, team_name, avatar_url, department")
         .eq("id", user.id)
         .single();
 
@@ -42,6 +43,7 @@ export default function Profile() {
           reg_no: data.reg_no || "",
           team_name: data.team_name || "",
           avatar_url: data.avatar_url || "",
+          department: data.department || "",
         });
         if (data.avatar_url) setAvatarPreview(data.avatar_url);
       }
@@ -90,7 +92,6 @@ export default function Profile() {
 
     const { error } = await supabase.from("users").update({
       name: profile.name,
-      team_name: profile.team_name,
     }).eq("id", user.id);
 
     setSaving(false);
@@ -223,7 +224,20 @@ export default function Profile() {
             />
           </div>
 
-          {/* Team Name */}
+          {/* Department (read-only) */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold text-white/40 uppercase tracking-wider flex items-center gap-1.5">
+              <Users className="h-3.5 w-3.5" /> Department
+            </label>
+            <input
+              type="text"
+              value={profile.department}
+              disabled
+              className="w-full rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-3 text-white/40 text-sm cursor-not-allowed"
+            />
+          </div>
+
+          {/* Team Name (read-only) */}
           <div className="space-y-1.5">
             <label className="text-xs font-bold text-white/40 uppercase tracking-wider flex items-center gap-1.5">
               <Users className="h-3.5 w-3.5" /> Team Name
@@ -231,10 +245,10 @@ export default function Profile() {
             <input
               type="text"
               value={profile.team_name}
-              onChange={(e) => setProfile({ ...profile, team_name: e.target.value })}
-              className="w-full rounded-xl border border-white/[0.08] bg-white/[0.04] px-4 py-3 text-white text-sm focus:outline-none focus:border-emerald-500/50 transition-all placeholder:text-white/20"
-              placeholder="Your team name (e.g., RCB)"
+              disabled
+              className="w-full rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-3 text-white/40 text-sm cursor-not-allowed"
             />
+            <p className="text-[10px] text-white/25">Team name is set by the match/team creator.</p>
           </div>
 
           {/* Save Button */}

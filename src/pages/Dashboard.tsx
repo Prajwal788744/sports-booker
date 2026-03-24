@@ -3,7 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/hooks/useAuth";
 import { GlowingEffect } from "@/components/ui/glowing-effect";
-import { ArrowRight, Trophy, Gamepad2, Eye, TrendingUp, XCircle, CheckCircle2, User, MinusCircle } from "lucide-react";
+import { ArrowRight, Trophy, Gamepad2, Eye, TrendingUp, XCircle, CheckCircle2, User, MinusCircle, Bell } from "lucide-react";
+import { toast } from "sonner";
 
 const sportMeta: Record<string, { icon: string; description: string; img: string }> = {
   Cricket: {
@@ -38,6 +39,24 @@ interface MatchRecord {
   total_overs: number;
   created_at: string;
 }
+interface TeamJoinRequest {
+  id: number;
+  match_id: number;
+  player_id: number;
+  from_team: string;
+  to_team: string;
+  status: string;
+  matches: { team_a_name: string; team_b_name: string }[] | null;
+}
+interface MatchRequest {
+  id: number;
+  booking_id: number;
+  from_user_id: string;
+  to_user_id: string;
+  status: "pending" | "accepted" | "rejected";
+  bookings: { id: number; date: string; start_time: string; end_time: string }[] | null;
+  users: { name: string | null; reg_no: string | null; department: string | null }[] | null;
+}
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -46,6 +65,8 @@ export default function Dashboard() {
   const [sports, setSports] = useState<Sport[]>([]);
   const [matches, setMatches] = useState<MatchRecord[]>([]);
   const [userTeamName, setUserTeamName] = useState<string>("");
+  const [pendingRequests, setPendingRequests] = useState<TeamJoinRequest[]>([]);
+  const [pendingMatchRequests, setPendingMatchRequests] = useState<MatchRequest[]>([]);
 
   useEffect(() => {
     supabase.from("sports").select("*").order("id").then(({ data }) => {
@@ -65,8 +86,74 @@ export default function Dashboard() {
         .then(({ data }) => {
           if (data) setMatches(data);
         });
+
+      supabase
+        .from("team_join_requests")
+        .select("id, match_id, player_id, from_team, to_team, status, matches(team_a_name, team_b_name)")
+        .eq("status", "pending")
+        .then(async ({ data: requests }) => {
+          if (!requests || requests.length === 0) {
+            setPendingRequests([]);
+            return;
+          }
+          const { data: myPlayers } = await supabase.from("players").select("id").eq("user_id", user.id);
+          const myPlayerIds = new Set((myPlayers || []).map((p: any) => p.id));
+          const mine = requests.filter((r: any) => myPlayerIds.has(r.player_id));
+          setPendingRequests(mine as TeamJoinRequest[]);
+        });
+
+      supabase
+        .from("match_requests")
+        .select("id, booking_id, from_user_id, to_user_id, status, bookings(id,date,start_time,end_time), users!match_requests_from_user_id_fkey(name,reg_no,department)")
+        .eq("to_user_id", user.id)
+        .eq("status", "pending")
+        .then(({ data }) => {
+          setPendingMatchRequests((data || []) as MatchRequest[]);
+        });
     }
   }, [user]);
+
+  const getTeamNameBySide = (req: TeamJoinRequest, side: string) => {
+    const match = req.matches?.[0];
+    if (!match) return side;
+    return side === "A" ? match.team_a_name : match.team_b_name;
+  };
+
+  const handleTeamRequest = async (req: TeamJoinRequest, decision: "accepted" | "rejected") => {
+    if (!user) return;
+    if (decision === "accepted") {
+      const { error: moveErr } = await supabase
+        .from("match_players")
+        .update({ team: req.to_team, is_captain: false })
+        .eq("match_id", req.match_id)
+        .eq("player_id", req.player_id);
+      if (moveErr) {
+        toast.error(moveErr.message || "Failed to join requested team");
+        return;
+      }
+    }
+    const { error: reqErr } = await supabase
+      .from("team_join_requests")
+      .update({ status: decision })
+      .eq("id", req.id);
+    if (reqErr) {
+      toast.error(reqErr.message || "Failed to update request");
+      return;
+    }
+    toast.success(decision === "accepted" ? "You joined the new team." : "Team request rejected.");
+    setPendingRequests((prev) => prev.filter((r) => r.id !== req.id));
+  };
+
+  const handleMatchRequest = async (req: MatchRequest, decision: "accepted" | "rejected") => {
+    const { error } = await supabase
+      .from("match_requests")
+      .update({ status: decision, responded_at: new Date().toISOString() })
+      .eq("id", req.id);
+    if (error) return toast.error(error.message || "Failed to update request");
+    setPendingMatchRequests((prev) => prev.filter((r) => r.id !== req.id));
+    toast.success(decision === "accepted" ? "Match request accepted. Create your team now." : "Match request rejected.");
+    if (decision === "accepted") navigate(`/booking-team/${req.booking_id}`);
+  };
 
   const totalMatches = matches.length;
 
@@ -117,6 +204,20 @@ export default function Dashboard() {
           </div>
           <div className="flex items-center gap-3">
             <button
+              onClick={() => {
+                const section = document.getElementById("team-requests-section");
+                if (section) section.scrollIntoView({ behavior: "smooth", block: "start" });
+              }}
+              className="relative text-sm font-medium text-amber-400/80 hover:text-amber-400 transition-colors flex items-center gap-1"
+            >
+              <Bell className="h-3.5 w-3.5" /> Requests
+              {pendingRequests.length > 0 && (
+                <span className="ml-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-500/20 border border-amber-500/30 px-1.5 text-[10px] font-bold text-amber-300">
+                  {pendingRequests.length}
+                </span>
+              )}
+            </button>
+            <button
               onClick={() => navigate("/my-bookings")}
               className="text-sm font-medium text-white/50 hover:text-white transition-colors"
             >
@@ -151,6 +252,77 @@ export default function Dashboard() {
           </h1>
           <p className="mt-2 text-white/40 text-base">Choose a sport and book your slot.</p>
         </div>
+
+        {pendingRequests.length > 0 && (
+          <div id="team-requests-section" className="mb-8 rounded-2xl border border-amber-500/20 bg-amber-500/[0.06] p-5 animate-fade-up">
+            <div className="flex items-center gap-2 mb-3">
+              <Bell className="h-4 w-4 text-amber-400" />
+              <h3 className="text-sm font-bold text-amber-400 uppercase tracking-wider">Team Requests</h3>
+            </div>
+            <div className="space-y-3">
+              {pendingRequests.map((req) => (
+                <div key={req.id} className="rounded-xl border border-white/[0.08] bg-black/30 p-3">
+                  <p className="text-sm text-white/80">
+                    Leave <span className="font-bold">{getTeamNameBySide(req, req.from_team)}</span> and join{" "}
+                    <span className="font-bold text-emerald-400">{getTeamNameBySide(req, req.to_team)}</span>?
+                  </p>
+                  <div className="mt-3 flex gap-2">
+                    <button
+                      onClick={() => handleTeamRequest(req, "accepted")}
+                      className="rounded-lg bg-emerald-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-600 transition-colors"
+                    >
+                      Accept
+                    </button>
+                    <button
+                      onClick={() => handleTeamRequest(req, "rejected")}
+                      className="rounded-lg bg-red-500/15 border border-red-500/30 px-3 py-1.5 text-xs font-semibold text-red-400 hover:bg-red-500/25 transition-colors"
+                    >
+                      Reject
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {pendingMatchRequests.length > 0 && (
+          <div className="mb-8 rounded-2xl border border-blue-500/20 bg-blue-500/[0.06] p-5 animate-fade-up">
+            <div className="flex items-center gap-2 mb-3">
+              <Bell className="h-4 w-4 text-blue-400" />
+              <h3 className="text-sm font-bold text-blue-400 uppercase tracking-wider">Match Requests</h3>
+            </div>
+            <div className="space-y-3">
+              {pendingMatchRequests.map((req) => (
+                <div key={req.id} className="rounded-xl border border-white/[0.08] bg-black/30 p-3">
+                  {(() => {
+                    const fromUser = req.users?.[0];
+                    return (
+                  <p className="text-sm text-white/80">
+                    {fromUser?.name || "A user"} ({fromUser?.reg_no || "No reg"}
+                    {fromUser?.department ? ` • ${fromUser.department}` : ""}) challenged you for booking #{req.booking_id}.
+                  </p>
+                    );
+                  })()}
+                  <div className="mt-3 flex gap-2">
+                    <button
+                      onClick={() => handleMatchRequest(req, "accepted")}
+                      className="rounded-lg bg-emerald-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-600 transition-colors"
+                    >
+                      Accept
+                    </button>
+                    <button
+                      onClick={() => handleMatchRequest(req, "rejected")}
+                      className="rounded-lg bg-red-500/15 border border-red-500/30 px-3 py-1.5 text-xs font-semibold text-red-400 hover:bg-red-500/25 transition-colors"
+                    >
+                      Reject
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         <ul className="grid gap-7 sm:grid-cols-2 lg:grid-cols-3">
           {sports.map((sport, i) => {

@@ -5,7 +5,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { GlowingEffect } from "@/components/ui/glowing-effect";
 import { toast } from "sonner";
-import { X, ArrowRightLeft, Clock, CalendarCheck, Trophy, ArrowLeft, AlertTriangle, Gamepad2, Eye, Gamepad } from "lucide-react";
+import { X, ArrowRightLeft, Clock, CalendarCheck, Trophy, ArrowLeft, AlertTriangle, Gamepad2, Eye, Gamepad, Search, Users } from "lucide-react";
 import { format, addDays } from "date-fns";
 
 const sportNames: Record<number, { name: string; icon: string }> = {
@@ -16,6 +16,7 @@ const sportNames: Record<number, { name: string; icon: string }> = {
 
 interface BookingRow {
   id: number;
+  user_id: string;
   sport_id: number;
   date: string;
   start_time: string;
@@ -28,6 +29,12 @@ interface FreeSlot {
   start: string;
   end: string;
   label: string;
+}
+interface OpponentUserOption {
+  id: string;
+  name: string | null;
+  reg_no: string | null;
+  department: string | null;
 }
 
 function formatTime(time: string) {
@@ -75,6 +82,13 @@ export default function MyBookings() {
   const [matchStatuses, setMatchStatuses] = useState<Record<number, { matchId: number; status: string; teamA: string; teamB: string; winner: string | null }>>({});
 
   const [allCompletedMatches, setAllCompletedMatches] = useState<{ id: number; teamA: string; teamB: string; winner: string | null; matchType: string; totalOvers: number; createdAt: string }[]>([]);
+  const [bookingTeamsCount, setBookingTeamsCount] = useState<Record<number, number>>({});
+
+  // Opponent challenge modal
+  const [challengeBooking, setChallengeBooking] = useState<BookingRow | null>(null);
+  const [challengeSearch, setChallengeSearch] = useState("");
+  const [challengeResults, setChallengeResults] = useState<OpponentUserOption[]>([]);
+  const [challengeLoading, setChallengeLoading] = useState(false);
 
   // Postpone modal state
   const [postponeBooking, setPostponeBooking] = useState<BookingRow | null>(null);
@@ -113,6 +127,25 @@ export default function MyBookings() {
           }
           setMatchStatuses(statusMap);
         }
+
+        const { data: bookingTeams } = await supabase
+          .from("booking_teams")
+          .select("booking_id, user_id")
+          .in("booking_id", cricketBookingIds);
+        if (bookingTeams) {
+          const countMap: Record<number, number> = {};
+          for (const bt of bookingTeams as any[]) {
+            countMap[bt.booking_id] = (countMap[bt.booking_id] || 0) + 1;
+          }
+          setBookingTeamsCount(countMap);
+        }
+
+        const { data: acceptedReqs } = await supabase
+          .from("match_requests")
+          .select("booking_id, to_user_id, status")
+          .in("booking_id", cricketBookingIds)
+          .eq("status", "accepted");
+        void acceptedReqs;
       }
     }
 
@@ -130,6 +163,116 @@ export default function MyBookings() {
     }
 
     setLoading(false);
+  };
+
+  useEffect(() => {
+    if (!challengeBooking || !challengeSearch.trim() || !user) {
+      setChallengeResults([]);
+      return;
+    }
+    const run = async () => {
+      setChallengeLoading(true);
+      const q = challengeSearch.trim();
+      const { data, error } = await supabase
+        .from("users")
+        .select("id, name, reg_no, department")
+        .neq("id", user.id)
+        .or(`name.ilike.%${q}%,reg_no.ilike.%${q}%`)
+        .limit(15);
+      setChallengeLoading(false);
+      if (error) return;
+      setChallengeResults((data || []) as OpponentUserOption[]);
+    };
+    const t = setTimeout(run, 250);
+    return () => clearTimeout(t);
+  }, [challengeSearch, challengeBooking, user]);
+
+  const sendMatchRequest = async (booking: BookingRow, opponent: OpponentUserOption) => {
+    if (!user) return;
+    const { error } = await supabase.from("match_requests").upsert(
+      {
+        booking_id: booking.id,
+        from_user_id: user.id,
+        to_user_id: opponent.id,
+        status: "pending",
+      },
+      { onConflict: "booking_id,from_user_id,to_user_id" }
+    );
+    if (error) return toast.error(error.message || "Failed to send match request");
+    toast.success(`Match request sent to ${opponent.name || "opponent"}`);
+    setChallengeBooking(null);
+    setChallengeSearch("");
+    fetchBookings();
+  };
+
+  const startMatchFromSavedTeams = async (booking: BookingRow) => {
+    if (!user) return;
+    if (booking.user_id !== user.id) return toast.error("Only booking owner can start match");
+
+    const { data: bTeams, error: btErr } = await supabase
+      .from("booking_teams")
+      .select("team_id, user_id, is_owner, teams(name)")
+      .eq("booking_id", booking.id);
+    if (btErr || !bTeams || bTeams.length < 2) {
+      return toast.error("Both teams must be created before starting");
+    }
+
+    const ownerTeam = (bTeams as any[]).find((t) => t.is_owner === true);
+    const oppTeam = (bTeams as any[]).find((t) => t.is_owner === false);
+    if (!ownerTeam || !oppTeam) return toast.error("Owner and opponent teams are required");
+
+    const { data: match, error: matchErr } = await supabase
+      .from("matches")
+      .insert({
+        booking_id: booking.id,
+        created_by: user.id,
+        sport_id: 1,
+        match_type: "T20",
+        total_overs: 20,
+        team_a_name: ownerTeam.teams?.name || "Team A",
+        team_b_name: oppTeam.teams?.name || "Team B",
+        status: "not_started",
+      })
+      .select("id")
+      .single();
+    if (matchErr || !match) return toast.error(matchErr?.message || "Failed to create match");
+
+    const { data: aPlayers } = await supabase.from("team_players").select("user_id, is_captain, users(name)").eq("team_id", ownerTeam.team_id);
+    const { data: bPlayers } = await supabase.from("team_players").select("user_id, is_captain, users(name)").eq("team_id", oppTeam.team_id);
+    const all = [
+      ...(aPlayers || []).map((p: any) => ({ ...p, team: "A" })),
+      ...(bPlayers || []).map((p: any) => ({ ...p, team: "B" })),
+    ];
+    if (all.length < 4) return toast.error("Not enough players to start match");
+
+    const ensurePlayerIds: { player_id: number; team: string; is_captain: boolean }[] = [];
+    for (const p of all) {
+      let { data: row } = await supabase.from("players").select("id").eq("user_id", p.user_id).single();
+      if (!row) {
+        const created = await supabase.from("players").insert({ user_id: p.user_id, name: p.users?.name || "Player" }).select("id").single();
+        row = created.data as any;
+      }
+      if (row?.id) ensurePlayerIds.push({ player_id: row.id, team: p.team, is_captain: !!p.is_captain });
+    }
+
+    const { error: mpErr } = await supabase.from("match_players").insert(
+      ensurePlayerIds.map((e) => ({ match_id: match.id, player_id: e.player_id, team: e.team, is_captain: e.is_captain }))
+    );
+    if (mpErr) return toast.error(mpErr.message || "Failed to load teams into match");
+
+    const { error: statsErr } = await supabase.from("player_stats").insert(
+      ensurePlayerIds.map((e) => ({ match_id: match.id, player_id: e.player_id }))
+    );
+    if (statsErr) return toast.error(statsErr.message || "Failed to initialize stats");
+
+    await supabase.from("innings").insert([
+      { match_id: match.id, innings_number: 1, team: "A", status: "ongoing" },
+      { match_id: match.id, innings_number: 2, team: "B", status: "ongoing" },
+    ]);
+    await supabase.from("matches").update({ status: "ongoing", current_innings: 1, batting_team: "A", bowling_team: "B" }).eq("id", match.id);
+
+    toast.success("Match started with saved teams");
+    navigate(`/scoring/${match.id}`);
   };
 
   useEffect(() => {
@@ -387,6 +530,36 @@ export default function MyBookings() {
                                   <Gamepad2 className="h-3.5 w-3.5 mr-1" /> Match
                                 </Button>
                               )}
+                              {b.sport_id === 1 && b.user_id === user?.id && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="flex-1 rounded-xl border-blue-500/20 text-blue-400 hover:bg-blue-500/10 hover:text-blue-300 hover:border-blue-500/30 transition-all duration-200 bg-transparent"
+                                  onClick={() => navigate(`/booking-team/${b.id}`)}
+                                >
+                                  <Users className="h-3.5 w-3.5 mr-1" /> Create My Team
+                                </Button>
+                              )}
+                              {b.sport_id === 1 && b.user_id === user?.id && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="flex-1 rounded-xl border-purple-500/20 text-purple-400 hover:bg-purple-500/10 hover:text-purple-300 hover:border-purple-500/30 transition-all duration-200 bg-transparent"
+                                  onClick={() => setChallengeBooking(b)}
+                                >
+                                  Choose Opponent Captain
+                                </Button>
+                              )}
+                              {b.sport_id === 1 && b.user_id === user?.id && (bookingTeamsCount[b.id] || 0) >= 2 && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="flex-1 rounded-xl border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/10 hover:text-emerald-300 hover:border-emerald-500/30 transition-all duration-200 bg-transparent"
+                                  onClick={() => startMatchFromSavedTeams(b)}
+                                >
+                                  Start Match
+                                </Button>
+                              )}
                               <Button
                                 size="sm"
                                 variant="outline"
@@ -624,6 +797,45 @@ export default function MyBookings() {
                 </div>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Opponent challenge modal */}
+      {challengeBooking && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setChallengeBooking(null)} />
+          <div className="relative w-full max-w-lg rounded-2xl border border-white/[0.08] bg-black/90 p-6">
+            <h3 className="text-lg font-bold text-white">Choose captain of opponent team</h3>
+            <p className="text-xs text-white/40 mt-1">Search signed-up users by name/reg no. Department will be shown.</p>
+            <div className="relative mt-4">
+              <Search className="absolute left-3 top-3.5 h-4 w-4 text-white/30" />
+              <input
+                value={challengeSearch}
+                onChange={(e) => setChallengeSearch(e.target.value)}
+                placeholder="Search users..."
+                className="w-full rounded-xl border border-white/[0.08] bg-white/[0.05] py-3 pl-10 pr-3 text-sm text-white"
+              />
+            </div>
+            <div className="mt-3 max-h-72 overflow-y-auto space-y-2">
+              {challengeLoading ? (
+                <p className="text-xs text-white/40">Searching...</p>
+              ) : challengeResults.length === 0 ? (
+                <p className="text-xs text-white/40">No users found.</p>
+              ) : (
+                challengeResults.map((u) => (
+                  <button
+                    key={u.id}
+                    onClick={() => sendMatchRequest(challengeBooking, u)}
+                    className="w-full rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-left hover:bg-white/[0.06]"
+                  >
+                    <div className="text-sm text-white">{u.name || "Unnamed user"}</div>
+                    <div className="text-[11px] text-white/35">{u.reg_no || "No reg"} {u.department ? `• ${u.department}` : ""}</div>
+                  </button>
+                ))
+              )}
+            </div>
+            <button onClick={() => setChallengeBooking(null)} className="mt-4 text-xs text-white/50 hover:text-white">Close</button>
           </div>
         </div>
       )}

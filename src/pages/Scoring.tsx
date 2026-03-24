@@ -3,7 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Trophy, Circle, ChevronRight, ChevronDown, Award, XCircle, Zap, Gift } from "lucide-react";
+import { ArrowLeft, Trophy, Circle, ChevronRight, ChevronDown, Award, XCircle, Zap } from "lucide-react";
 import { toast } from "sonner";
 
 interface MatchData {
@@ -214,7 +214,7 @@ export default function Scoring() {
 
     const isExtra = extraType !== "none";
     const isWicket = wicketType !== "none";
-    // Legal delivery: not a wide, not a no_ball (bonus DOES count as a legal ball)
+    // Legal delivery: not a wide, not a no_ball (bonus counts as legal ball)
     const validBall = extraType === "none" || extraType === "bonus";
 
     let newBalls = currentInnings.balls;
@@ -228,7 +228,7 @@ export default function Scoring() {
     }
 
     // Calculate total runs to add to innings
-    // For extras (wide/no_ball/bonus): 1 penalty run is always added
+    // Extras penalty run
     const penaltyRun = isExtra ? 1 : 0;
     const totalRuns = currentInnings.runs + runs + penaltyRun;
     const totalWickets = currentInnings.wickets + (isWicket ? 1 : 0);
@@ -280,7 +280,7 @@ export default function Scoring() {
 
     // ======== STRIKE ROTATION (Official Cricket Rules) ========
     // For wides: strike does NOT change (batsman didn't face the ball)
-    // For bonus: strike does NOT change
+    // For bonus: strike does NOT change (custom/Test path)
     // For no_ball: strike changes based on batsman runs (odd = swap)
     // For normal: strike changes based on runs scored (odd = swap)
     const shouldSwapForRuns = extraType !== "wide" && extraType !== "bonus" && runs % 2 === 1;
@@ -685,7 +685,7 @@ export default function Scoring() {
               </div>
             </div>
 
-            {/* Extras — No Ball, Wide, Bonus */}
+            {/* Extras */}
             <div className="relative z-20">
               <h4 className="text-xs font-bold text-white/40 uppercase tracking-wider mb-2">Extras</h4>
               <div className="grid grid-cols-3 gap-2">
@@ -757,7 +757,7 @@ export default function Scoring() {
                   onClick={() => handleBall(0, "bonus")}
                   className="rounded-xl py-3 text-sm font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20 transition-all disabled:opacity-40 flex items-center justify-center gap-1"
                 >
-                  <Gift className="h-3.5 w-3.5" /> Bonus
+                  Bonus
                 </button>
               </div>
             </div>
