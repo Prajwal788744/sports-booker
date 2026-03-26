@@ -73,14 +73,16 @@ export function RealtimeNotificationListener({
             duration: 6000,
             action: notification.action_url
               ? {
-                  label: "View",
-                  onClick: () => onNavigate?.(notification.action_url!),
-                }
+                label: "View",
+                onClick: () => onNavigate?.(notification.action_url!),
+              }
               : undefined,
           });
         }
       )
-      .subscribe();
+      .subscribe((status, err) => {
+        console.log(`[Realtime] notification-toast-${userId} status:`, status, err || '');
+      });
 
     return () => {
       supabase.removeChannel(channel);
@@ -161,7 +163,9 @@ export function RealtimeMatchRequestListener({
           );
         }
       )
-      .subscribe();
+      .subscribe((status, err) => {
+        console.log(`[Realtime] match-request-toast-${userId} status:`, status, err || '');
+      });
 
     return () => {
       supabase.removeChannel(channel);
@@ -242,7 +246,9 @@ export function RealtimeTeamInviteListener({
           );
         }
       )
-      .subscribe();
+      .subscribe((status, err) => {
+        console.log(`[Realtime] team-invite-toast-${userId} status:`, status, err || '');
+      });
 
     return () => {
       supabase.removeChannel(channel);
@@ -267,3 +273,4 @@ export function RealtimeNotificationToast({
     </>
   );
 }
+

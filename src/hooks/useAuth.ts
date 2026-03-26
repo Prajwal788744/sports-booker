@@ -44,6 +44,8 @@ export function useAuth() {
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
+        // Sync auth token with Realtime for RLS-protected subscriptions
+        await supabase.realtime.setAuth(session.access_token);
         await syncUserProfile(session.user);
         fetchRole(session.user.id);
       }
@@ -58,6 +60,8 @@ export function useAuth() {
         setSession(session);
         setUser(session?.user ?? null);
         if (session?.user) {
+          // Sync auth token with Realtime on every auth change (login, token refresh)
+          await supabase.realtime.setAuth(session.access_token);
           await syncUserProfile(session.user);
           fetchRole(session.user.id);
         } else {

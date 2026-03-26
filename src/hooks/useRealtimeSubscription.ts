@@ -52,7 +52,9 @@ export function useRealtimeSubscription(
     const channel = supabase
       .channel(channelName)
       .on("postgres_changes", channelConfig, onPayload)
-      .subscribe();
+      .subscribe((status, err) => {
+        console.log(`[Realtime] ${channelName} status:`, status, err || '');
+      });
 
     channelRef.current = channel;
 
@@ -121,7 +123,9 @@ export function useMultiTableRealtime(
       );
     }
 
-    channel.subscribe();
+    channel.subscribe((status, err) => {
+      console.log(`[Realtime] ${channelName} status:`, status, err || '');
+    });
     channelRef.current = channel;
 
     return () => {
@@ -199,7 +203,9 @@ export function useUserRealtimeNotifications(
         },
         () => callbacks.onTeamJoinRequest?.()
       )
-      .subscribe();
+      .subscribe((status, err) => {
+        console.log(`[Realtime] user-notifications-${userId} status:`, status, err || '');
+      });
 
     channelRef.current = channel;
 
@@ -261,7 +267,9 @@ export function useMatchRealtime(matchId: number | undefined, onUpdate: () => vo
         { event: "*", schema: "public", table: "match_players", filter: `match_id=eq.${matchId}` },
         onUpdate
       )
-      .subscribe();
+      .subscribe((status, err) => {
+        console.log(`[Realtime] match-realtime-${matchId} status:`, status, err || '');
+      });
 
     channelRef.current = channel;
 
@@ -311,7 +319,9 @@ export function useBookingLobbyRealtime(bookingId: number | undefined, onUpdate:
         },
         onUpdate
       )
-      .subscribe();
+      .subscribe((status, err) => {
+        console.log(`[Realtime] booking-lobby-${bookingId} status:`, status, err || '');
+      });
 
     channelRef.current = channel;
 
@@ -372,7 +382,9 @@ export function useUserBookingsRealtime(userId: string | undefined, onUpdate: ()
         },
         onUpdate
       )
-      .subscribe();
+      .subscribe((status, err) => {
+        console.log(`[Realtime] user-bookings-${userId} status:`, status, err || '');
+      });
 
     channelRef.current = channel;
 
