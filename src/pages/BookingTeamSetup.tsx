@@ -62,6 +62,32 @@ interface TeamPlayersRow {
   users: UserProfileRow | null;
 }
 
+async function fetchTeamPlayersWithUsers(teamIds: number[]): Promise<TeamPlayersRow[]> {
+  if (teamIds.length === 0) return [];
+
+  const { data: tpRows, error: tpError } = await supabase
+    .from("team_players")
+    .select("team_id, is_captain, user_id")
+    .in("team_id", teamIds);
+
+  if (tpError || !tpRows || tpRows.length === 0) return [];
+
+  const userIds = Array.from(new Set(tpRows.map((r) => r.user_id)));
+  const { data: userRows } = await supabase
+    .from("users")
+    .select("id, name, reg_no, department, registration_year, avatar_url, preferred_role, preferred_sport_id, sport_profile, course_code")
+    .in("id", userIds);
+
+  const userMap = new Map((userRows || []).map((u) => [u.id as string, u as UserProfileRow]));
+
+  return tpRows.map((row) => ({
+    team_id: row.team_id,
+    user_id: row.user_id,
+    is_captain: row.is_captain,
+    users: userMap.get(row.user_id) || null,
+  }));
+}
+
 interface MatchLookupRow {
   id: number;
   status: "not_started" | "ongoing" | "completed";
@@ -231,18 +257,7 @@ export default function BookingTeamSetup() {
     let savedTeamPlayers: TeamPlayersRow[] = [];
 
     if (teamIds.length > 0) {
-      const { data, error } = await supabase
-        .from("team_players")
-        .select(
-          "team_id, is_captain, user_id, users(id, name, reg_no, department, registration_year, avatar_url, preferred_role, preferred_sport_id, sport_profile, course_code)"
-        )
-        .in("team_id", teamIds);
-
-      if (error) {
-        throw new Error(error.message || "Failed to load your saved team players.");
-      }
-
-      savedTeamPlayers = data || [];
+      savedTeamPlayers = await fetchTeamPlayersWithUsers(teamIds);
     }
 
     const groupedSavedTeams = (myTeams || []).map((team) => ({
@@ -372,16 +387,7 @@ export default function BookingTeamSetup() {
           setExistingTeamId(Number(bookingTeam.team_id));
           setTeamName(persistedTeamNameValue);
 
-          const { data: teamPlayers, error: teamPlayersError } = await supabase
-            .from("team_players")
-            .select(
-              "is_captain, user_id, users(id, name, reg_no, department, registration_year, avatar_url, preferred_role, preferred_sport_id, sport_profile, course_code)"
-            )
-            .eq("team_id", bookingTeam.team_id);
-
-          if (teamPlayersError) {
-            throw new Error(teamPlayersError.message || "Failed to load the saved booking players.");
-          }
+          const teamPlayers = await fetchTeamPlayersWithUsers([Number(bookingTeam.team_id)]);
 
           const mappedMembers = ensureCurrentUserMember(
             (teamPlayers || []).map(mapTeamMember).filter((member): member is TeamMember => !!member),
