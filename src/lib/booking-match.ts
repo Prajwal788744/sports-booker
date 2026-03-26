@@ -135,9 +135,22 @@ export async function ensureBookingMatchStarted(bookingId: number, userId: strin
   }
 
   const playerIdMap = new Map((playerRows || []).map((row: { id: number; user_id: string }) => [row.user_id, row.id]));
-  const missingPlayers = uniqueUserIds.filter((playerId) => !playerIdMap.has(playerId));
-  if (missingPlayers.length > 0) {
-    throw new Error("Every player must sign in and finish onboarding once before the match can start.");
+  const missingPlayerUserIds = uniqueUserIds.filter((uid) => !playerIdMap.has(uid));
+
+  // Auto-create missing player records instead of blocking the match
+  if (missingPlayerUserIds.length > 0) {
+    const { data: newPlayers, error: insertError } = await supabase
+      .from("players")
+      .insert(missingPlayerUserIds.map((uid) => ({ user_id: uid })))
+      .select("id, user_id");
+
+    if (insertError || !newPlayers) {
+      throw new Error("Failed to create player profiles. Please try again.");
+    }
+
+    newPlayers.forEach((row: { id: number; user_id: string }) => {
+      playerIdMap.set(row.user_id, row.id);
+    });
   }
 
   const matchPlayers = allPlayers
