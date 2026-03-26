@@ -22,6 +22,7 @@ import LiveScore from "./pages/LiveScore";
 import MatchHistory from "./pages/MatchHistory";
 import Profile from "./pages/Profile";
 import BookingTeamSetup from "./pages/BookingTeamSetup";
+import MatchLobby from "./pages/MatchLobby";
 
 const queryClient = new QueryClient();
 
@@ -150,6 +151,7 @@ const App = () => (
               <Route path="/matches" element={<MatchHistory />} />
               <Route path="/profile" element={<Profile />} />
               <Route path="/booking-team/:bookingId" element={<BookingTeamSetup />} />
+              <Route path="/match-lobby/:bookingId" element={<MatchLobby />} />
               <Route path="/admin" element={<AdminPanel />} />
               <Route path="*" element={<NotFound />} />
             </Routes>

@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { GlowingEffect } from "@/components/ui/glowing-effect";
 import { ensureBookingMatchStarted, getBookingMatchRoute } from "@/lib/booking-match";
 import { toast } from "sonner";
-import { X, ArrowRightLeft, Clock, CalendarCheck, Trophy, ArrowLeft, AlertTriangle, Gamepad2, Eye, Gamepad, Search, Users } from "lucide-react";
+import { X, ArrowRightLeft, Clock, CalendarCheck, Trophy, ArrowLeft, AlertTriangle, Gamepad2, Eye, Gamepad, Search, Users, Swords } from "lucide-react";
 import { format, addDays } from "date-fns";
 
 const sportNames: Record<number, { name: string; icon: string }> = {
@@ -84,6 +84,7 @@ export default function MyBookings() {
 
   const [allCompletedMatches, setAllCompletedMatches] = useState<{ id: number; teamA: string; teamB: string; winner: string | null; matchType: string; totalOvers: number; createdAt: string }[]>([]);
   const [bookingTeamsCount, setBookingTeamsCount] = useState<Record<number, number>>({});
+  const [opponentBookingIds, setOpponentBookingIds] = useState<Set<number>>(new Set());
 
   // Opponent challenge modal
   const [challengeBooking, setChallengeBooking] = useState<BookingRow | null>(null);
@@ -107,8 +108,34 @@ export default function MyBookings() {
       .eq("user_id", user.id)
       .order("date", { ascending: true })
       .order("start_time", { ascending: true });
-    if (data) {
-      setBookings(data);
+
+    // Also fetch bookings where user is accepted opponent captain
+    const { data: opponentMatchReqs } = await supabase
+      .from("match_requests")
+      .select("booking_id")
+      .eq("to_user_id", user.id)
+      .eq("status", "accepted");
+
+    const opponentBIds = new Set((opponentMatchReqs || []).map((r: { booking_id: number }) => r.booking_id));
+    let opponentBookings: BookingRow[] = [];
+    if (opponentBIds.size > 0) {
+      const existingIds = new Set((data || []).map((b: BookingRow) => b.id));
+      const missingIds = Array.from(opponentBIds).filter((id) => !existingIds.has(id));
+      if (missingIds.length > 0) {
+        const { data: oppData } = await supabase
+          .from("bookings")
+          .select("*")
+          .in("id", missingIds)
+          .order("date", { ascending: true })
+          .order("start_time", { ascending: true });
+        opponentBookings = (oppData || []) as BookingRow[];
+      }
+    }
+    setOpponentBookingIds(opponentBIds);
+
+    const allBookings = [...(data || []), ...opponentBookings] as BookingRow[];
+    if (allBookings.length > 0) {
+      setBookings(allBookings);
 
       // Fetch match statuses for cricket bookings
       const cricketBookingIds = data.filter(b => b.sport_id === 1).map(b => b.id);
@@ -428,6 +455,11 @@ export default function MyBookings() {
                               <span className={`inline-block rounded-full px-3 py-1 text-xs font-bold border ${getStatusStyles(b.status)}`}>
                                 {b.status.charAt(0).toUpperCase() + b.status.slice(1)}
                               </span>
+                              {opponentBookingIds.has(b.id) && (
+                                <span className="inline-block rounded-full px-2.5 py-1 text-[10px] font-bold border border-purple-500/20 bg-purple-500/10 text-purple-400 ml-1">
+                                  Opponent Captain
+                                </span>
+                              )}
                             </div>
                             <div className="flex items-center gap-1.5 text-sm text-white/40 mb-1">
                               <CalendarCheck className="h-3.5 w-3.5" />
@@ -467,7 +499,17 @@ export default function MyBookings() {
                                   <Gamepad2 className="h-3.5 w-3.5 mr-1" /> Match
                                 </Button>
                               )}
-                              {b.sport_id === 1 && b.user_id === user?.id && (
+                              {b.sport_id === 1 && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="flex-1 rounded-xl border-cyan-500/20 text-cyan-400 hover:bg-cyan-500/10 hover:text-cyan-300 hover:border-cyan-500/30 transition-all duration-200 bg-transparent"
+                                  onClick={() => navigate(`/match-lobby/${b.id}`)}
+                                >
+                                  <Swords className="h-3.5 w-3.5 mr-1" /> Match Lobby
+                                </Button>
+                              )}
+                              {b.sport_id === 1 && (b.user_id === user?.id || opponentBookingIds.has(b.id)) && (
                                 <Button
                                   size="sm"
                                   variant="outline"

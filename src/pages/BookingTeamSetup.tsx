@@ -553,19 +553,8 @@ export default function BookingTeamSetup() {
     setMembers((current) => current.map((member) => ({ ...member, is_captain: member.id === id })));
   };
 
-  const startMatch = async () => {
-    if (!user) return;
-
-    setStartingMatch(true);
-    try {
-      const result = await ensureBookingMatchStarted(numBookingId, user.id);
-      toast.success(result.created ? "Match started." : "Opening the booking match.");
-      navigate(result.route);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to start the booking match.");
-    } finally {
-      setStartingMatch(false);
-    }
+  const goToLobby = () => {
+    navigate(`/match-lobby/${numBookingId}`);
   };
 
   const saveTeam = async () => {
@@ -715,12 +704,41 @@ export default function BookingTeamSetup() {
 
       const directMemberIds = directMembers.map((member) => member.id).filter((id) => id !== user.id);
       if (directMemberIds.length > 0) {
+        // Check existing invites/notifications
+        const { data: existingInvites } = await supabase
+          .from("booking_player_requests")
+          .select("user_id")
+          .eq("booking_id", numBookingId)
+          .eq("team_id", teamId)
+          .eq("request_type", "invite")
+          .in("user_id", directMemberIds);
+
+        const alreadyInvited = new Set((existingInvites || []).map((row) => row.user_id));
+
+        // Create invite requests for registered users (not already invited)
+        const inviteRows = directMembers
+          .filter((member) => member.id !== user.id && !alreadyInvited.has(member.id))
+          .map((member) => ({
+            booking_id: numBookingId,
+            team_id: teamId,
+            source_team_id: null,
+            requested_by: user.id,
+            user_id: member.id,
+            request_type: "invite" as const,
+            status: "pending" as const,
+          }));
+
+        if (inviteRows.length > 0) {
+          await supabase.from("booking_player_requests").insert(inviteRows);
+        }
+
+        // Send notifications for invites
         const { data: existingNotifications } = await supabase
           .from("notifications")
           .select("recipient_user_id")
           .eq("booking_id", numBookingId)
           .eq("team_id", teamId)
-          .eq("type", "team_assignment")
+          .eq("type", "team_invite")
           .in("recipient_user_id", directMemberIds);
 
         const alreadyNotified = new Set((existingNotifications || []).map((row) => row.recipient_user_id));
@@ -731,10 +749,10 @@ export default function BookingTeamSetup() {
             actor_user_id: user.id,
             booking_id: numBookingId,
             team_id: teamId,
-            type: "team_assignment",
-            title: "You were added to a team",
-            message: `${trimmedTeamName} added you for booking #${numBookingId}.`,
-            action_url: "/my-bookings",
+            type: "team_invite",
+            title: "You have been invited to join a team",
+            message: `You have been invited to join ${trimmedTeamName} for booking #${numBookingId}.`,
+            action_url: "/dashboard",
             metadata: {
               captain: captain.name,
               teamName: trimmedTeamName,
@@ -873,13 +891,11 @@ export default function BookingTeamSetup() {
     }
   };
 
-  const startButtonLabel = bookingMatchState.existingMatchId
+  const lobbyButtonLabel = bookingMatchState.existingMatchId
     ? bookingMatchState.existingMatchStatus === "completed"
       ? "Open Scorecard"
       : "Open Match"
-    : bookingMatchState.bothTeamsReady
-    ? "Start Match"
-    : "Waiting for Both Teams";
+    : "Go to Match Lobby";
 
   return (
     <div className="min-h-screen bg-black/[0.96] text-white">
@@ -1125,12 +1141,12 @@ export default function BookingTeamSetup() {
             {saving ? "Saving Team..." : "Save Team"}
           </Button>
           <Button
-            onClick={startMatch}
-            disabled={saving || startingMatch || (!bookingMatchState.existingMatchId && !bookingMatchState.bothTeamsReady)}
+            onClick={goToLobby}
+            disabled={saving}
             variant="outline"
             className="rounded-2xl border-emerald-500/25 bg-transparent py-6 text-base font-semibold text-emerald-400 hover:border-emerald-500/35 hover:bg-emerald-500/10 hover:text-emerald-300"
           >
-            {startingMatch ? "Starting Match..." : startButtonLabel}
+            {lobbyButtonLabel}
           </Button>
         </div>
       </main>

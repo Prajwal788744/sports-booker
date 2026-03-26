@@ -78,6 +78,7 @@ interface BookingPlayerRequest {
   source_team_id: number | null;
   requested_by: string;
   status: "pending" | "accepted" | "rejected";
+  request_type: "invite" | "team_switch";
   target_team_name: string;
   source_team_name: string | null;
   requested_by_user: { name: string | null; reg_no: string | null; department: string | null } | null;
@@ -146,7 +147,7 @@ export default function Dashboard() {
           .eq("status", "pending"),
         supabase
           .from("booking_player_requests")
-          .select("id, booking_id, team_id, source_team_id, requested_by, status")
+          .select("id, booking_id, team_id, source_team_id, requested_by, status, request_type")
           .eq("user_id", user.id)
           .eq("status", "pending")
           .order("created_at", { ascending: false }),
@@ -219,6 +220,7 @@ export default function Dashboard() {
           source_team_id: number | null;
           requested_by: string;
           status: "pending" | "accepted" | "rejected";
+          request_type: "invite" | "team_switch";
         }>;
 
         const teamIds = Array.from(
@@ -262,6 +264,7 @@ export default function Dashboard() {
               target_team_name: teamMap.get(row.team_id) || "Requested team",
               source_team_name: row.source_team_id ? teamMap.get(row.source_team_id) || "Current team" : null,
               requested_by_user: requesterMap[row.requested_by] || null,
+              request_type: row.request_type || "team_switch",
             }))
           );
         }
@@ -562,10 +565,20 @@ export default function Dashboard() {
                   {pendingBookingRequests.map((request) => (
                     <div key={request.id} className="rounded-xl border border-white/[0.08] bg-black/30 p-4">
                       <p className="text-sm text-white/85">
-                        {request.requested_by_user?.name || "A player"} wants you to leave{" "}
-                        <span className="font-bold">{request.source_team_name || "your current team"}</span> and join{" "}
-                        <span className="font-bold text-emerald-400">{request.target_team_name}</span> for booking #
-                        {request.booking_id}.
+                        {request.request_type === "invite" ? (
+                          <>
+                            {request.requested_by_user?.name || "A captain"} invited you to join{" "}
+                            <span className="font-bold text-emerald-400">{request.target_team_name}</span> for booking    #
+                            {request.booking_id}.
+                          </>
+                        ) : (
+                          <>
+                            {request.requested_by_user?.name || "A player"} wants you to leave{" "}
+                            <span className="font-bold">{request.source_team_name || "your current team"}</span> and join{" "}
+                            <span className="font-bold text-emerald-400">{request.target_team_name}</span> for booking #
+                            {request.booking_id}.
+                          </>
+                        )}
                       </p>
                       <p className="mt-1 text-xs text-white/40">
                         {request.requested_by_user?.reg_no || "No reg no"}
