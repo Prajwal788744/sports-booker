@@ -283,11 +283,27 @@ export default function Dashboard() {
 
       const [teamNameRes, matchesRes, teamJoinRes, matchReqRes, bookingSwitchRes, notificationRes] = await Promise.all([
         supabase.from("users").select("team_name").eq("id", user.id).single(),
-        supabase
-          .from("matches")
-          .select("id, team_a_name, team_b_name, winner, status, match_type, total_overs, created_at")
-          .eq("status", "completed")
-          .order("created_at", { ascending: false }),
+        // Only fetch matches where this user participated (via players → match_players)
+        (async () => {
+          // Step 1: Get user's player IDs
+          const { data: myPlayers } = await supabase.from("players").select("id").eq("user_id", user.id);
+          if (!myPlayers || myPlayers.length === 0) return { data: [], error: null };
+          const playerIds = myPlayers.map((p: { id: number }) => p.id);
+          // Step 2: Get match IDs where this user played
+          const { data: matchPlayerRows } = await supabase
+            .from("match_players")
+            .select("match_id")
+            .in("player_id", playerIds);
+          if (!matchPlayerRows || matchPlayerRows.length === 0) return { data: [], error: null };
+          const matchIds = [...new Set(matchPlayerRows.map((mp: { match_id: number }) => mp.match_id))];
+          // Step 3: Fetch only those matches
+          return supabase
+            .from("matches")
+            .select("id, team_a_name, team_b_name, winner, status, match_type, total_overs, created_at")
+            .in("id", matchIds)
+            .eq("status", "completed")
+            .order("created_at", { ascending: false });
+        })(),
         supabase
           .from("team_join_requests")
           .select("id, match_id, player_id, from_team, to_team, status, matches(team_a_name, team_b_name)")

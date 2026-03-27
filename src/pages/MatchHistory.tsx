@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
+import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { GlowingEffect } from "@/components/ui/glowing-effect";
 import { ArrowLeft, Trophy, Wifi, Clock, Award, Eye, Gamepad2, Circle } from "lucide-react";
@@ -13,16 +14,42 @@ interface MatchRow {
 
 export default function MatchHistory() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [matches, setMatches] = useState<MatchRow[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    supabase.from("matches").select("*").order("created_at", { ascending: false })
-      .then(({ data }) => {
-        setMatches(data || []);
+    if (!user) return;
+    (async () => {
+      // Step 1: Get user's player IDs
+      const { data: myPlayers } = await supabase.from("players").select("id").eq("user_id", user.id);
+      if (!myPlayers || myPlayers.length === 0) {
+        setMatches([]);
         setLoading(false);
-      });
-  }, []);
+        return;
+      }
+      const playerIds = myPlayers.map((p: { id: number }) => p.id);
+      // Step 2: Get match IDs where this user played
+      const { data: matchPlayerRows } = await supabase
+        .from("match_players")
+        .select("match_id")
+        .in("player_id", playerIds);
+      if (!matchPlayerRows || matchPlayerRows.length === 0) {
+        setMatches([]);
+        setLoading(false);
+        return;
+      }
+      const matchIds = [...new Set(matchPlayerRows.map((mp: { match_id: number }) => mp.match_id))];
+      // Step 3: Fetch only those matches
+      const { data } = await supabase
+        .from("matches")
+        .select("*")
+        .in("id", matchIds)
+        .order("created_at", { ascending: false });
+      setMatches(data || []);
+      setLoading(false);
+    })();
+  }, [user]);
 
   const getStatusColor = (s: string) => {
     if (s === "ongoing") return "bg-emerald-500/10 text-emerald-400 border-emerald-500/20";
