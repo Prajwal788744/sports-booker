@@ -353,20 +353,26 @@ export default function MyBookings() {
       {/* Nav */}
       <nav className="sticky top-0 z-50 border-b border-white/[0.06] bg-black/80 backdrop-blur-xl">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6">
-          <button onClick={() => navigate("/dashboard")} className="flex items-center gap-2 text-sm text-white/50 hover:text-white transition-colors group">
-            <ArrowLeft className="h-4 w-4 transition-transform group-hover:-translate-x-1" /> Dashboard
-          </button>
           <div className="flex items-center gap-2.5 font-extrabold text-lg">
             <GcuLogo />
             <span className="tracking-tight text-white hidden sm:inline">GCU Sports</span>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="hidden md:flex items-center gap-3">
             <button
               onClick={() => navigate("/matches")}
               className="text-sm font-medium text-emerald-400/70 hover:text-emerald-400 transition-colors flex items-center gap-1"
             >
               <Gamepad2 className="h-3.5 w-3.5" /> Matches
             </button>
+            <button
+              onClick={async () => { await signOut(); navigate("/"); }}
+              className="text-sm font-medium text-red-400/70 hover:text-red-400 transition-colors"
+            >
+              Logout
+            </button>
+          </div>
+          {/* Mobile: only logout */}
+          <div className="flex md:hidden items-center gap-2">
             <button
               onClick={async () => { await signOut(); navigate("/"); }}
               className="text-sm font-medium text-red-400/70 hover:text-red-400 transition-colors"

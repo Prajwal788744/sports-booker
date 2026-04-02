@@ -119,7 +119,7 @@ export default function Dashboard() {
   const [pendingMatchRequests, setPendingMatchRequests] = useState<MatchRequest[]>([]);
   const [pendingBookingRequests, setPendingBookingRequests] = useState<BookingPlayerRequest[]>([]);
   const [notifications, setNotifications] = useState<PlayerNotification[]>([]);
-  const [showRequests, setShowRequests] = useState(false);
+
 
   // Refetch functions for realtime updates
   const refetchMatchRequests = useCallback(async () => {
@@ -667,10 +667,8 @@ export default function Dashboard() {
           </div>
           <div className="hidden md:flex items-center gap-3">
             <button
-              onClick={() => setShowRequests((prev) => !prev)}
-              className={`relative flex items-center gap-1 text-sm font-medium transition-colors ${
-                showRequests ? "text-amber-400" : "text-amber-400/80 hover:text-amber-400"
-              }`}
+              onClick={() => navigate("/notifications")}
+              className="relative flex items-center gap-1 text-sm font-medium transition-colors text-amber-400/80 hover:text-amber-400"
             >
               <Bell className="h-3.5 w-3.5" /> Requests
               {totalAlerts > 0 && (
@@ -710,10 +708,8 @@ export default function Dashboard() {
           {/* Mobile: only show requests bell + logout */}
           <div className="flex md:hidden items-center gap-2">
             <button
-              onClick={() => setShowRequests((prev) => !prev)}
-              className={`relative flex items-center gap-1 text-sm font-medium transition-colors ${
-                showRequests ? "text-amber-400" : "text-amber-400/80 hover:text-amber-400"
-              }`}
+              onClick={() => navigate("/notifications")}
+              className="relative flex items-center gap-1 text-sm font-medium transition-colors text-amber-400/80 hover:text-amber-400"
             >
               <Bell className="h-4 w-4" />
               {totalAlerts > 0 && (
@@ -743,164 +739,7 @@ export default function Dashboard() {
           <p className="mt-2 text-base text-white/40">Choose a sport and book your slot.</p>
         </div>
 
-        {showRequests && (pendingBookingRequests.length > 0 ||
-          pendingMatchRequests.length > 0 ||
-          pendingRequests.length > 0 ||
-          notifications.length > 0) && (
-          <div id="requests-section" className="mb-10 space-y-6 animate-fade-up">
-            {pendingBookingRequests.length > 0 && (
-              <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.06] p-5 animate-fade-up">
-                <div className="mb-3 flex items-center gap-2">
-                  <Bell className="h-4 w-4 text-emerald-400" />
-                  <h3 className="text-sm font-bold uppercase tracking-wider text-emerald-400">Booking Team Requests</h3>
-                </div>
-                <div className="space-y-3">
-                  {pendingBookingRequests.map((request) => (
-                    <div key={request.id} className="rounded-xl border border-white/[0.08] bg-black/30 p-4">
-                      <p className="text-sm text-white/85">
-                        {request.request_type === "invite" ? (
-                          <>
-                            {request.requested_by_user?.name || "A captain"} invited you to join{" "}
-                            <span className="font-bold text-emerald-400">{request.target_team_name}</span> for booking    #
-                            {request.booking_id}.
-                          </>
-                        ) : (
-                          <>
-                            {request.requested_by_user?.name || "A player"} wants you to leave{" "}
-                            <span className="font-bold">{request.source_team_name || "your current team"}</span> and join{" "}
-                            <span className="font-bold text-emerald-400">{request.target_team_name}</span> for booking #
-                            {request.booking_id}.
-                          </>
-                        )}
-                      </p>
-                      <p className="mt-1 text-xs text-white/40">
-                        {request.requested_by_user?.reg_no || "No reg no"}
-                        {request.requested_by_user?.department ? ` • ${request.requested_by_user.department}` : ""}
-                      </p>
-                      <div className="mt-3 flex gap-2">
-                        <button
-                          onClick={() => handleBookingRequest(request, "accepted")}
-                          className="rounded-lg bg-emerald-500 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-emerald-600"
-                        >
-                          Accept
-                        </button>
-                        <button
-                          onClick={() => handleBookingRequest(request, "rejected")}
-                          className="rounded-lg border border-red-500/30 bg-red-500/15 px-3 py-1.5 text-xs font-semibold text-red-400 transition-colors hover:bg-red-500/25"
-                        >
-                          Reject
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
 
-            {pendingMatchRequests.length > 0 && (
-              <div className="rounded-2xl border border-blue-500/20 bg-blue-500/[0.06] p-5 animate-fade-up">
-                <div className="mb-3 flex items-center gap-2">
-                  <Bell className="h-4 w-4 text-blue-400" />
-                  <h3 className="text-sm font-bold uppercase tracking-wider text-blue-400">Opponent Captain Requests</h3>
-                </div>
-                <div className="space-y-3">
-                  {pendingMatchRequests.map((request) => (
-                    <div key={request.id} className="rounded-xl border border-white/[0.08] bg-black/30 p-4">
-                      <p className="text-sm text-white/85">
-                        {request.from_user?.name || "A user"} ({request.from_user?.reg_no || "No reg no"}
-                        {request.from_user?.department ? ` • ${request.from_user.department}` : ""}) wants you to captain
-                        the opponent team for booking #{request.booking_id}.
-                      </p>
-                      <div className="mt-3 flex gap-2">
-                        <button
-                          onClick={() => handleMatchRequest(request, "accepted")}
-                          className="rounded-lg bg-emerald-500 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-emerald-600"
-                        >
-                          Accept
-                        </button>
-                        <button
-                          onClick={() => handleMatchRequest(request, "rejected")}
-                          className="rounded-lg border border-red-500/30 bg-red-500/15 px-3 py-1.5 text-xs font-semibold text-red-400 transition-colors hover:bg-red-500/25"
-                        >
-                          Reject
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {pendingRequests.length > 0 && (
-              <div className="rounded-2xl border border-amber-500/20 bg-amber-500/[0.06] p-5 animate-fade-up">
-                <div className="mb-3 flex items-center gap-2">
-                  <Bell className="h-4 w-4 text-amber-400" />
-                  <h3 className="text-sm font-bold uppercase tracking-wider text-amber-400">Live Match Team Requests</h3>
-                </div>
-                <div className="space-y-3">
-                  {pendingRequests.map((request) => (
-                    <div key={request.id} className="rounded-xl border border-white/[0.08] bg-black/30 p-4">
-                      <p className="text-sm text-white/85">
-                        Leave <span className="font-bold">{getTeamNameBySide(request, request.from_team)}</span> and join{" "}
-                        <span className="font-bold text-emerald-400">{getTeamNameBySide(request, request.to_team)}</span>?
-                      </p>
-                      <div className="mt-3 flex gap-2">
-                        <button
-                          onClick={() => handleTeamRequest(request, "accepted")}
-                          className="rounded-lg bg-emerald-500 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-emerald-600"
-                        >
-                          Accept
-                        </button>
-                        <button
-                          onClick={() => handleTeamRequest(request, "rejected")}
-                          className="rounded-lg border border-red-500/30 bg-red-500/15 px-3 py-1.5 text-xs font-semibold text-red-400 transition-colors hover:bg-red-500/25"
-                        >
-                          Reject
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {notifications.length > 0 && (
-              <div className="rounded-2xl border border-white/[0.08] bg-white/[0.03] p-5 animate-fade-up">
-                <div className="mb-3 flex items-center gap-2">
-                  <Bell className="h-4 w-4 text-white/70" />
-                  <h3 className="text-sm font-bold uppercase tracking-wider text-white/70">Team Notifications</h3>
-                </div>
-                <div className="space-y-3">
-                  {notifications.map((notification) => (
-                    <button
-                      key={notification.id}
-                      onClick={() => markNotificationRead(notification)}
-                      className={`w-full rounded-xl border px-4 py-3 text-left transition-colors ${
-                        notification.is_read
-                          ? "border-white/[0.05] bg-white/[0.02] text-white/60"
-                          : "border-emerald-500/20 bg-emerald-500/[0.06] text-white"
-                      }`}
-                    >
-                      <div className="flex items-center justify-between gap-3">
-                        <p className="text-sm font-semibold">{notification.title}</p>
-                        {!notification.is_read && (
-                          <span className="rounded-full border border-emerald-500/30 bg-emerald-500/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.15em] text-emerald-400">
-                            New
-                          </span>
-                        )}
-                      </div>
-                      <p className="mt-1 text-sm text-white/70">{notification.message}</p>
-                      <p className="mt-2 text-[11px] text-white/35">
-                        {notification.actor_name ? `${notification.actor_name} • ` : ""}
-                        {formatNotificationDate(notification.created_at)}
-                      </p>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
 
         <ul className="grid gap-7 sm:grid-cols-2 lg:grid-cols-3">
           {sports.map((sport, index) => {

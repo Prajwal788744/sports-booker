@@ -281,13 +281,16 @@ export default function Booking() {
       <div className="min-h-screen bg-black/[0.96] text-white">
         <nav className="sticky top-0 z-50 border-b border-white/[0.06] bg-black/80 backdrop-blur-xl">
           <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6">
-            <button onClick={() => navigate("/dashboard")} className="flex items-center gap-2 text-sm text-white/50 hover:text-white transition-colors group">
-              <ArrowLeft className="h-4 w-4 transition-transform group-hover:-translate-x-1" /> Dashboard
-            </button>
             <div className="flex items-center gap-2.5 font-extrabold text-lg">
               <GcuLogo />
               <span className="tracking-tight text-white hidden sm:inline">GCU Sports</span>
             </div>
+            <div className="hidden md:flex items-center gap-2">
+              <button onClick={() => navigate("/dashboard")} className="flex items-center gap-2 text-sm text-white/50 hover:text-white transition-colors group">
+                <ArrowLeft className="h-4 w-4 transition-transform group-hover:-translate-x-1" /> Dashboard
+              </button>
+            </div>
+            <div className="md:hidden" />
           </div>
         </nav>
         <div className="flex flex-col items-center justify-center py-32 px-4">
@@ -320,13 +323,16 @@ export default function Booking() {
       {/* Nav */}
       <nav className="sticky top-0 z-50 border-b border-white/[0.06] bg-black/80 backdrop-blur-xl">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6">
-          <button onClick={() => navigate("/dashboard")} className="flex items-center gap-2 text-sm text-white/50 hover:text-white transition-colors group">
-            <ArrowLeft className="h-4 w-4 transition-transform group-hover:-translate-x-1" /> Dashboard
-          </button>
           <div className="flex items-center gap-2.5 font-extrabold text-lg">
             <GcuLogo />
             <span className="tracking-tight text-white hidden sm:inline">GCU Sports</span>
           </div>
+          <div className="hidden md:flex items-center gap-2">
+            <button onClick={() => navigate("/dashboard")} className="flex items-center gap-2 text-sm text-white/50 hover:text-white transition-colors group">
+              <ArrowLeft className="h-4 w-4 transition-transform group-hover:-translate-x-1" /> Dashboard
+            </button>
+          </div>
+          <div className="md:hidden" />
         </div>
       </nav>
 

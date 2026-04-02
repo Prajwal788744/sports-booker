@@ -1,7 +1,7 @@
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { LimelightNav } from "@/components/ui/limelight-nav";
-import { LayoutDashboard, CalendarDays, Gamepad2, User } from "lucide-react";
+import { LayoutDashboard, CalendarDays, Bell, Gamepad2, User } from "lucide-react";
 import { useMemo } from "react";
 
 /**
@@ -31,8 +31,9 @@ export default function BottomNav() {
       path.startsWith("/opponent-team-setup/")
     )
       return 1;
-    if (path === "/matches") return 2;
-    if (path === "/profile") return 3;
+    if (path === "/notifications") return 2;
+    if (path === "/matches") return 3;
+    if (path === "/profile") return 4;
     return 0;
   }, [location.pathname]);
 
@@ -49,6 +50,12 @@ export default function BottomNav() {
         icon: <CalendarDays />,
         label: "Bookings",
         onClick: () => navigate("/my-bookings"),
+      },
+      {
+        id: "notifications",
+        icon: <Bell />,
+        label: "Notifications",
+        onClick: () => navigate("/notifications"),
       },
       {
         id: "matches",

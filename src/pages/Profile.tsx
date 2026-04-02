@@ -207,7 +207,7 @@ export default function Profile() {
             <GcuLogo />
             <span className="tracking-tight text-white">GCU Sports</span>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="hidden md:flex items-center gap-3">
             <button onClick={() => navigate("/dashboard")} className="text-sm font-medium text-white/50 hover:text-white transition-colors">
               Dashboard
             </button>
@@ -217,6 +217,15 @@ export default function Profile() {
             <button onClick={() => navigate("/matches")} className="text-sm font-medium text-emerald-400/70 hover:text-emerald-400 transition-colors flex items-center gap-1">
               <Gamepad2 className="h-3.5 w-3.5" /> Matches
             </button>
+            <button
+              onClick={async () => { await signOut(); navigate("/"); }}
+              className="text-sm font-medium text-red-400/70 hover:text-red-400 transition-colors"
+            >
+              Logout
+            </button>
+          </div>
+          {/* Mobile: only logout */}
+          <div className="flex md:hidden items-center gap-2">
             <button
               onClick={async () => { await signOut(); navigate("/"); }}
               className="text-sm font-medium text-red-400/70 hover:text-red-400 transition-colors"

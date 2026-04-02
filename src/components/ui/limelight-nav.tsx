@@ -76,12 +76,12 @@ export const LimelightNav = ({
   };
 
   return (
-    <nav className={`relative inline-flex items-center h-16 rounded-lg px-2 ${className}`}>
+    <nav className={`relative flex items-center h-16 rounded-lg px-2 w-full ${className}`}>
       {items.map(({ id, icon, label, onClick }, index) => (
           <a
             key={id}
             ref={el => (navItemRefs.current[index] = el)}
-            className={`relative z-20 flex h-full cursor-pointer items-center justify-center p-5 ${iconContainerClassName}`}
+            className={`relative z-20 flex h-full flex-1 cursor-pointer items-center justify-center p-5 ${iconContainerClassName}`}
             onClick={() => handleItemClick(index, onClick)}
             aria-label={label}
           >

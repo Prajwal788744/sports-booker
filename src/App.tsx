@@ -30,6 +30,7 @@ import MatchLobby from "./pages/MatchLobby";
 import MatchSetup from "./pages/MatchSetup";
 import OpponentTeamSetup from "./pages/OpponentTeamSetup";
 import PlayerProfile from "./pages/PlayerProfile";
+import Notifications from "./pages/Notifications";
 
 const queryClient = new QueryClient();
 
@@ -184,6 +185,7 @@ const App = () => (
               <Route path="/match-setup/:bookingId" element={<MatchSetup />} />
               <Route path="/opponent-team-setup/:bookingId" element={<OpponentTeamSetup />} />
               <Route path="/player/:userId" element={<PlayerProfile />} />
+              <Route path="/notifications" element={<Notifications />} />
               <Route path="/admin" element={<AdminPanel />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
