@@ -148,46 +148,74 @@ export default function AdminUsers() {
           {search && <p className="text-xs text-white/20 mt-1">Try a different search term</p>}
         </div>
       ) : (
-        <div className="space-y-2">
+        <div className="space-y-3">
           {filtered.map(u => (
-            <div key={u.id} className={`rounded-xl border bg-white/[0.02] p-4 flex items-center gap-4 transition-all hover:bg-white/[0.04] ${u.is_active ? "border-white/[0.06]" : "border-red-500/20 bg-red-500/[0.03]"}`}>
-              {/* Avatar */}
-              <div className="h-10 w-10 rounded-full bg-gradient-to-br from-emerald-500/30 to-blue-500/30 flex items-center justify-center flex-shrink-0 overflow-hidden">
-                {u.avatar_url ? <img src={u.avatar_url} className="h-full w-full object-cover" /> : <span className="text-sm font-bold text-white/60">{(u.name || "?")[0].toUpperCase()}</span>}
+            <div key={u.id} className={`rounded-xl border bg-white/[0.02] p-4 sm:p-4 transition-all hover:bg-white/[0.04] ${u.is_active ? "border-white/[0.06]" : "border-red-500/20 bg-red-500/[0.03]"}`}>
+              {/* Top row: Avatar + Info + Toggle (desktop) */}
+              <div className="flex items-center gap-4">
+                {/* Avatar */}
+                <div className="h-10 w-10 rounded-full bg-gradient-to-br from-emerald-500/30 to-blue-500/30 flex items-center justify-center flex-shrink-0 overflow-hidden">
+                  {u.avatar_url ? <img src={u.avatar_url} className="h-full w-full object-cover" /> : <span className="text-sm font-bold text-white/60">{(u.name || "?")[0].toUpperCase()}</span>}
+                </div>
+
+                {/* Info */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-sm font-bold text-white truncate">{u.name || "No name"}</span>
+                    {u.role === "admin" && <span className="text-[10px] font-bold text-amber-400 border border-amber-500/20 bg-amber-500/10 rounded-full px-1.5 py-0.5">ADMIN</span>}
+                    {!u.is_active && <span className="text-[10px] font-bold text-red-400 border border-red-500/20 bg-red-500/10 rounded-full px-1.5 py-0.5">DISABLED</span>}
+                  </div>
+                  <p className="text-xs text-white/40 truncate">{u.email} {u.reg_no ? `· ${u.reg_no}` : ""} {u.department ? `· ${u.department}` : ""}</p>
+                </div>
+
+                {/* Stats — desktop only (horizontal) */}
+                <div className="hidden sm:flex items-center gap-4 flex-shrink-0">
+                  <div className="text-center">
+                    <p className="text-xs text-white/30">Matches</p>
+                    <p className="text-sm font-bold text-blue-400">{u.matchCount || 0}</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-xs text-white/30">Wins</p>
+                    <p className="text-sm font-bold text-emerald-400">{u.wins || 0}</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-xs text-white/30">Win %</p>
+                    <p className="text-sm font-bold text-purple-400">{u.matchCount ? Math.round(((u.wins || 0) / u.matchCount) * 100) : 0}%</p>
+                  </div>
+                </div>
+
+                {/* Toggle — desktop */}
+                {u.role !== "admin" && (
+                  <button onClick={() => toggleActive(u.id, u.is_active)} className={`hidden sm:flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-all flex-shrink-0 ${u.is_active ? "border-red-500/20 bg-red-500/10 text-red-400 hover:bg-red-500/20" : "border-emerald-500/20 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20"}`}>
+                    {u.is_active ? <><ShieldOff className="h-3 w-3" /> Disable</> : <><Shield className="h-3 w-3" /> Enable</>}
+                  </button>
+                )}
               </div>
 
-              {/* Info */}
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-bold text-white truncate">{u.name || "No name"}</span>
-                  {u.role === "admin" && <span className="text-[10px] font-bold text-amber-400 border border-amber-500/20 bg-amber-500/10 rounded-full px-1.5 py-0.5">ADMIN</span>}
-                  {!u.is_active && <span className="text-[10px] font-bold text-red-400 border border-red-500/20 bg-red-500/10 rounded-full px-1.5 py-0.5">DISABLED</span>}
+              {/* Mobile: Stats + Toggle stacked below */}
+              <div className="sm:hidden mt-3 pt-3 border-t border-white/[0.06]">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-4">
+                    <div className="text-center">
+                      <p className="text-[10px] text-white/30 uppercase font-semibold">Matches</p>
+                      <p className="text-sm font-bold text-blue-400">{u.matchCount || 0}</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-[10px] text-white/30 uppercase font-semibold">Wins</p>
+                      <p className="text-sm font-bold text-emerald-400">{u.wins || 0}</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-[10px] text-white/30 uppercase font-semibold">Win %</p>
+                      <p className="text-sm font-bold text-purple-400">{u.matchCount ? Math.round(((u.wins || 0) / u.matchCount) * 100) : 0}%</p>
+                    </div>
+                  </div>
+                  {u.role !== "admin" && (
+                    <button onClick={() => toggleActive(u.id, u.is_active)} className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-all ${u.is_active ? "border-red-500/20 bg-red-500/10 text-red-400 hover:bg-red-500/20" : "border-emerald-500/20 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20"}`}>
+                      {u.is_active ? <><ShieldOff className="h-3 w-3" /> Disable</> : <><Shield className="h-3 w-3" /> Enable</>}
+                    </button>
+                  )}
                 </div>
-                <p className="text-xs text-white/40 truncate">{u.email} {u.reg_no ? `· ${u.reg_no}` : ""} {u.department ? `· ${u.department}` : ""}</p>
               </div>
-
-              {/* Stats */}
-              <div className="hidden sm:flex items-center gap-4 flex-shrink-0">
-                <div className="text-center">
-                  <p className="text-xs text-white/30">Matches</p>
-                  <p className="text-sm font-bold text-blue-400">{u.matchCount || 0}</p>
-                </div>
-                <div className="text-center">
-                  <p className="text-xs text-white/30">Wins</p>
-                  <p className="text-sm font-bold text-emerald-400">{u.wins || 0}</p>
-                </div>
-                <div className="text-center">
-                  <p className="text-xs text-white/30">Win %</p>
-                  <p className="text-sm font-bold text-purple-400">{u.matchCount ? Math.round(((u.wins || 0) / u.matchCount) * 100) : 0}%</p>
-                </div>
-              </div>
-
-              {/* Toggle */}
-              {u.role !== "admin" && (
-                <button onClick={() => toggleActive(u.id, u.is_active)} className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-all ${u.is_active ? "border-red-500/20 bg-red-500/10 text-red-400 hover:bg-red-500/20" : "border-emerald-500/20 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20"}`}>
-                  {u.is_active ? <><ShieldOff className="h-3 w-3" /> Disable</> : <><Shield className="h-3 w-3" /> Enable</>}
-                </button>
-              )}
             </div>
           ))}
         </div>

@@ -10,6 +10,7 @@ import OnboardingDialog from "@/components/OnboardingDialog";
 import { RealtimeNotificationToast } from "@/components/RealtimeNotificationToast";
 import OfflineBanner from "@/components/OfflineBanner";
 import InstallPrompt from "@/components/InstallPrompt";
+import BottomNav from "@/components/BottomNav";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import Dashboard from "./pages/Dashboard";
@@ -188,6 +189,7 @@ const App = () => (
             </Routes>
           </OnboardingGate>
         </AuthGuard>
+        <BottomNav />
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>

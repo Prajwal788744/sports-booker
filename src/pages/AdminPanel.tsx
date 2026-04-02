@@ -191,7 +191,8 @@ export default function AdminPanel() {
                     ))}
                   </div>
 
-                  <div className="overflow-hidden rounded-2xl border border-white/[0.06] bg-white/[0.02]">
+                  {/* Desktop table view */}
+                  <div className="hidden md:block overflow-hidden rounded-2xl border border-white/[0.06] bg-white/[0.02]">
                     <div className="grid grid-cols-6 border-b border-white/[0.06] px-5 py-3 text-[10px] font-bold uppercase text-white/30">
                       <span>#</span><span>Sport</span><span>Date</span><span>Time</span><span>User</span><span className="text-center">Status</span>
                     </div>
@@ -204,6 +205,41 @@ export default function AdminPanel() {
                         <span className="text-sm text-white/60 font-medium truncate">{booking.user_name || "—"}</span>
                         <div className="text-center">
                           <span className={`inline-block rounded-full border px-2.5 py-1 text-xs font-bold ${booking.status === "booked" ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-400" : booking.status === "cancelled" ? "border-red-500/20 bg-red-500/10 text-red-400" : "border-amber-500/20 bg-amber-500/10 text-amber-400"}`}>{booking.status}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Mobile card view */}
+                  <div className="md:hidden space-y-3">
+                    {filteredBookings.map(booking => (
+                      <div key={booking.id} className="rounded-2xl border border-white/[0.06] bg-white/[0.03] p-4 space-y-3">
+                        {/* Header: ID + Status badge */}
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-white/40 font-mono">Booking #{booking.id}</span>
+                          <span className={`inline-block rounded-full border px-2.5 py-1 text-xs font-bold ${booking.status === "booked" ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-400" : booking.status === "cancelled" ? "border-red-500/20 bg-red-500/10 text-red-400" : "border-amber-500/20 bg-amber-500/10 text-amber-400"}`}>{booking.status}</span>
+                        </div>
+
+                        {/* Sport */}
+                        <div className="flex items-center gap-2">
+                          <span className="text-lg">{sportIcons[booking.sport_id] || "🏅"}</span>
+                          <span className="text-sm font-semibold text-white">{sportNames[booking.sport_id] || `Sport ${booking.sport_id}`}</span>
+                        </div>
+
+                        {/* Details */}
+                        <div className="space-y-1.5 pt-1 border-t border-white/[0.06]">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs text-white/30 uppercase font-semibold">Date</span>
+                            <span className="text-sm text-white/60">{new Date(booking.date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs text-white/30 uppercase font-semibold">Time</span>
+                            <span className="text-sm text-white/60 flex items-center gap-1"><Clock className="h-3 w-3 text-white/30" />{formatTime(booking.start_time)} – {formatTime(booking.end_time)}</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs text-white/30 uppercase font-semibold">User</span>
+                            <span className="text-sm text-white/60 font-medium">{booking.user_name || "—"}</span>
+                          </div>
                         </div>
                       </div>
                     ))}

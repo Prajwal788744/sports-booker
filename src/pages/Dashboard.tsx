@@ -665,7 +665,7 @@ export default function Dashboard() {
             <GcuLogo />
             <span className="tracking-tight text-white">GCU Sports</span>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="hidden md:flex items-center gap-3">
             <button
               onClick={() => setShowRequests((prev) => !prev)}
               className={`relative flex items-center gap-1 text-sm font-medium transition-colors ${
@@ -707,10 +707,35 @@ export default function Dashboard() {
               Logout
             </button>
           </div>
+          {/* Mobile: only show requests bell + logout */}
+          <div className="flex md:hidden items-center gap-2">
+            <button
+              onClick={() => setShowRequests((prev) => !prev)}
+              className={`relative flex items-center gap-1 text-sm font-medium transition-colors ${
+                showRequests ? "text-amber-400" : "text-amber-400/80 hover:text-amber-400"
+              }`}
+            >
+              <Bell className="h-4 w-4" />
+              {totalAlerts > 0 && (
+                <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full border border-amber-500/30 bg-amber-500/20 px-1.5 text-[10px] font-bold text-amber-300">
+                  {totalAlerts}
+                </span>
+              )}
+            </button>
+            <button
+              onClick={async () => {
+                await signOut();
+                navigate("/");
+              }}
+              className="text-sm font-medium text-red-400/70 transition-colors hover:text-red-400"
+            >
+              Logout
+            </button>
+          </div>
         </div>
       </nav>
 
-      <main className="relative z-10 mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:py-12">
+      <main className="relative z-10 mx-auto max-w-7xl px-4 py-8 pb-24 sm:px-6 sm:py-10 md:pb-12 lg:py-12">
         <div className="mb-10 animate-fade-up">
           <h1 className="text-3xl font-extrabold tracking-tight sm:text-4xl">
             Welcome back, <span className="text-emerald-400">{userName}</span>!
@@ -934,7 +959,7 @@ export default function Dashboard() {
               </span>
             </div>
 
-            <div className="mb-8 grid grid-cols-4 gap-4">
+            <div className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
               {[
                 { label: "Played", value: totalMatches, icon: TrendingUp, color: "text-white" },
                 { label: "Wins", value: wins, icon: CheckCircle2, color: "text-emerald-400" },
@@ -952,7 +977,8 @@ export default function Dashboard() {
               ))}
             </div>
 
-            <div className="overflow-hidden rounded-2xl border border-white/[0.06] bg-white/[0.02]">
+            {/* Desktop table view */}
+            <div className="hidden md:block overflow-hidden rounded-2xl border border-white/[0.06] bg-white/[0.02]">
               <div className="grid grid-cols-4 border-b border-white/[0.04] px-5 py-3 text-[10px] font-bold uppercase text-white/30">
                 <span className="col-span-1">Teams</span>
                 <span className="text-center">Type</span>
@@ -1001,6 +1027,61 @@ export default function Dashboard() {
                         <Eye className="h-3 w-3" /> View
                       </button>
                     </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Mobile card view */}
+            <div className="md:hidden space-y-3">
+              {matches.map((match) => {
+                const result = getMatchResult(match);
+                const winnerName = result === "tie" ? "Tied" : result === "unknown" ? "—" : `${result} won`;
+                const date = new Date(match.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+
+                return (
+                  <div
+                    key={match.id}
+                    className="rounded-2xl border border-white/[0.06] bg-white/[0.03] p-5 space-y-3"
+                  >
+                    {/* Teams */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-base font-bold text-white">
+                          {match.team_a_name}
+                        </p>
+                        <p className="text-xs text-white/30 font-medium my-0.5">vs</p>
+                        <p className="text-base font-bold text-white">
+                          {match.team_b_name}
+                        </p>
+                      </div>
+                      <span
+                        className={`flex-shrink-0 inline-block rounded-full border px-3 py-1.5 text-xs font-bold ${
+                          result === "tie"
+                            ? "border-amber-500/20 bg-amber-500/10 text-amber-400"
+                            : isUserWin(match)
+                            ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-400"
+                            : "border-red-500/20 bg-red-500/10 text-red-400"
+                        }`}
+                      >
+                        {winnerName}
+                      </span>
+                    </div>
+
+                    {/* Meta row */}
+                    <div className="flex items-center gap-3 text-xs text-white/40">
+                      <span className="font-medium">{match.match_type} · {match.total_overs}ov</span>
+                      <span>·</span>
+                      <span>{date}</span>
+                    </div>
+
+                    {/* Action */}
+                    <button
+                      onClick={() => navigate(`/live/${match.id}`)}
+                      className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-2.5 text-sm font-semibold text-emerald-400 transition-colors active:bg-emerald-500/20"
+                    >
+                      <Eye className="h-4 w-4" /> View Scorecard
+                    </button>
                   </div>
                 );
               })}
