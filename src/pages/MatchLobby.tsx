@@ -253,7 +253,7 @@ export default function MatchLobby() {
         </div>
       </nav>
 
-      <main className="relative z-10 mx-auto max-w-4xl px-4 py-10 sm:px-6">
+      <main className="relative z-10 mx-auto max-w-4xl px-4 py-10 pb-28 sm:px-6 md:pb-10">
         {/* Header */}
         <div className="mb-8 text-center animate-fade-up">
           <h1 className="text-3xl font-extrabold tracking-tight sm:text-4xl">

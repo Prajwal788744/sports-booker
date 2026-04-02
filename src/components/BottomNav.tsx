@@ -81,7 +81,7 @@ export default function BottomNav() {
       <LimelightNav
         items={navItems}
         activeIndex={activeIndex}
-        className="w-full rounded-none border-x-0 border-b-0 border-t border-white/[0.06] bg-black/90 backdrop-blur-xl"
+        className="w-full rounded-none border-x-0 border-b-0 border-t border-white/[0.12] bg-[#0a0a0a] backdrop-blur-xl shadow-[0_-4px_20px_rgba(0,0,0,0.8)]"
         limelightClassName="bg-emerald-400 shadow-[0_50px_15px_theme(colors.emerald.400)]"
         iconClassName="text-white"
       />

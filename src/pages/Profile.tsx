@@ -227,7 +227,7 @@ export default function Profile() {
         </div>
       </nav>
 
-      <main className="relative z-10 mx-auto max-w-lg px-4 py-10">
+      <main className="relative z-10 mx-auto max-w-lg px-4 py-10 pb-28 md:pb-10">
         <button onClick={() => navigate("/dashboard")} className="flex items-center gap-1.5 text-sm text-white/40 hover:text-white transition-colors mb-6">
           <ArrowLeft className="h-4 w-4" /> Back to Dashboard
         </button>

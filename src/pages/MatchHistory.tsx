@@ -81,7 +81,7 @@ export default function MatchHistory() {
         </div>
       </nav>
 
-      <main className="relative z-10 mx-auto max-w-4xl px-4 py-10 sm:px-6">
+      <main className="relative z-10 mx-auto max-w-4xl px-4 py-10 pb-28 sm:px-6 md:pb-10">
         <div className="mb-8 animate-fade-up">
           <h1 className="text-3xl font-extrabold tracking-tight">🏏 Matches</h1>
           <p className="text-white/40 text-sm mt-1">Live, upcoming, and completed matches</p>

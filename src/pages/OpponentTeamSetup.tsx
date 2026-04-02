@@ -725,7 +725,7 @@ export default function OpponentTeamSetup() {
         <div className="absolute bottom-1/4 right-1/4 w-[400px] h-[400px] rounded-full bg-emerald-500/[0.04] blur-[120px]" />
       </div>
 
-      <main className="relative z-10 mx-auto max-w-3xl px-4 py-8 sm:px-6">
+      <main className="relative z-10 mx-auto max-w-3xl px-4 py-8 pb-28 sm:px-6 md:pb-8">
         {/* Header */}
         <button
           onClick={() => navigate("/dashboard")}

@@ -330,7 +330,7 @@ export default function Booking() {
         </div>
       </nav>
 
-      <main className="relative z-10 mx-auto max-w-3xl px-4 py-10 sm:px-6 lg:py-12">
+      <main className="relative z-10 mx-auto max-w-3xl px-4 py-10 pb-28 sm:px-6 lg:py-12 md:pb-12">
         {/* Header */}
         <div className="mb-8 animate-fade-up">
           <h1 className="text-3xl font-extrabold sm:text-4xl tracking-tight">

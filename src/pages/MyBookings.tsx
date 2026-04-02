@@ -377,7 +377,7 @@ export default function MyBookings() {
         </div>
       </nav>
 
-      <main className="relative z-10 mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:py-12">
+      <main className="relative z-10 mx-auto max-w-7xl px-4 py-10 pb-28 sm:px-6 lg:py-12 md:pb-10">
         <div className="mb-8 flex items-center gap-3 animate-fade-up">
           <CalendarCheck className="h-8 w-8 text-emerald-400" />
           <h1 className="text-3xl font-extrabold sm:text-4xl tracking-tight">My Bookings</h1>
