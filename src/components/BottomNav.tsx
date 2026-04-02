@@ -1,21 +1,13 @@
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
-import {
-  LayoutDashboard,
-  CalendarDays,
-  Gamepad2,
-  User,
-} from "lucide-react";
+import { LimelightNav } from "@/components/ui/limelight-nav";
+import { LayoutDashboard, CalendarDays, Gamepad2, User } from "lucide-react";
+import { useMemo } from "react";
 
-const navItems = [
-  { label: "Home", path: "/dashboard", icon: LayoutDashboard },
-  { label: "Bookings", path: "/my-bookings", icon: CalendarDays },
-  { label: "Matches", path: "/matches", icon: Gamepad2 },
-  { label: "Profile", path: "/profile", icon: User },
-];
+const navPaths = ["/dashboard", "/my-bookings", "/matches", "/profile"];
 
 /**
- * Fixed bottom navigation bar for mobile devices.
+ * Fixed bottom navigation bar for mobile devices using the LimelightNav component.
  * Hides on desktop (md+). Appears on pages where a user is logged in.
  * Respects safe-area-inset-bottom for notched devices.
  */
@@ -30,50 +22,69 @@ export default function BottomNav() {
   const isAdmin = location.pathname.startsWith("/admin");
   const isLive = location.pathname.startsWith("/live/");
 
+  // Determine active tab index based on current route
+  const activeIndex = useMemo(() => {
+    const path = location.pathname;
+    if (path === "/dashboard" || path.startsWith("/booking/")) return 0;
+    if (
+      path === "/my-bookings" ||
+      path.startsWith("/match-lobby/") ||
+      path.startsWith("/match-setup/") ||
+      path.startsWith("/booking-team/") ||
+      path.startsWith("/opponent-team-setup/")
+    )
+      return 1;
+    if (path === "/matches") return 2;
+    if (path === "/profile") return 3;
+    return 0;
+  }, [location.pathname]);
+
+  const navItems = useMemo(
+    () => [
+      {
+        id: "home",
+        icon: <LayoutDashboard />,
+        label: "Home",
+        onClick: () => navigate("/dashboard"),
+      },
+      {
+        id: "bookings",
+        icon: <CalendarDays />,
+        label: "Bookings",
+        onClick: () => navigate("/my-bookings"),
+      },
+      {
+        id: "matches",
+        icon: <Gamepad2 />,
+        label: "Matches",
+        onClick: () => navigate("/matches"),
+      },
+      {
+        id: "profile",
+        icon: <User />,
+        label: "Profile",
+        onClick: () => navigate("/profile"),
+      },
+    ],
+    [navigate]
+  );
+
   if (!session || isPublic || isAdmin || isLive) return null;
 
   return (
-    <nav
-      className="fixed bottom-0 left-0 right-0 z-[9990] border-t border-white/[0.06] bg-black/90 backdrop-blur-xl md:hidden"
+    <div
+      className="fixed bottom-0 left-0 right-0 z-[9990] flex justify-center md:hidden"
       style={{
         paddingBottom: "env(safe-area-inset-bottom, 0px)",
       }}
     >
-      <div className="flex items-stretch justify-around">
-        {navItems.map((item) => {
-          const isActive =
-            location.pathname === item.path ||
-            (item.path === "/dashboard" && location.pathname.startsWith("/booking/")) ||
-            (item.path === "/my-bookings" && (
-              location.pathname.startsWith("/match-lobby/") ||
-              location.pathname.startsWith("/match-setup/") ||
-              location.pathname.startsWith("/booking-team/") ||
-              location.pathname.startsWith("/opponent-team-setup/")
-            ));
-
-          return (
-            <button
-              key={item.path}
-              onClick={() => navigate(item.path)}
-              className={`flex flex-1 flex-col items-center gap-0.5 py-2.5 transition-colors ${
-                isActive
-                  ? "text-emerald-400"
-                  : "text-white/35 active:text-white/60"
-              }`}
-            >
-              <item.icon
-                className={`h-5 w-5 transition-transform ${
-                  isActive ? "scale-110" : ""
-                }`}
-              />
-              <span className="text-[10px] font-semibold">{item.label}</span>
-              {isActive && (
-                <div className="absolute top-0 h-[2px] w-10 rounded-full bg-emerald-400" />
-              )}
-            </button>
-          );
-        })}
-      </div>
-    </nav>
+      <LimelightNav
+        items={navItems}
+        activeIndex={activeIndex}
+        className="w-full rounded-none border-x-0 border-b-0 border-t border-white/[0.06] bg-black/90 backdrop-blur-xl"
+        limelightClassName="bg-emerald-400 shadow-[0_50px_15px_theme(colors.emerald.400)]"
+        iconClassName="text-white"
+      />
+    </div>
   );
 }
