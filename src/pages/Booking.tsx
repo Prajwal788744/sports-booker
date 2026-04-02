@@ -4,7 +4,8 @@ import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { GlowingEffect } from "@/components/ui/glowing-effect";
-import { ArrowLeft, Clock, CalendarCheck, Trophy, AlertTriangle, ChevronDown, Search, Users, X } from "lucide-react";
+import { ArrowLeft, Clock, CalendarCheck, Trophy, AlertTriangle, ChevronDown, Swords } from "lucide-react";
+import GcuLogo from "@/components/GcuLogo";
 import { toast } from "sonner";
 import { format, addDays } from "date-fns";
 
@@ -53,12 +54,7 @@ interface ExistingBooking {
   booked_by_name?: string | null;
 }
 
-interface OpponentUserOption {
-  id: string;
-  name: string | null;
-  reg_no: string | null;
-  department: string | null;
-}
+
 
 // Custom time dropdown that shows booked times in red
 function TimeDropdown({
@@ -111,15 +107,14 @@ function TimeDropdown({
                   onChange(opt.value);
                   setOpen(false);
                 }}
-                className={`w-full text-left px-4 py-2.5 text-sm font-medium transition-colors flex items-center justify-between ${
-                  isActive
-                    ? "bg-emerald-500/20 text-emerald-400"
-                    : status === "booked"
+                className={`w-full text-left px-4 py-2.5 text-sm font-medium transition-colors flex items-center justify-between ${isActive
+                  ? "bg-emerald-500/20 text-emerald-400"
+                  : status === "booked"
                     ? "bg-red-500/10 text-red-400 hover:bg-red-500/20"
                     : status === "blocked"
-                    ? "bg-white/[0.03] text-white/30 hover:bg-white/[0.06]"
-                    : "text-white/90 hover:bg-white/[0.08]"
-                }`}
+                      ? "bg-white/[0.03] text-white/30 hover:bg-white/[0.06]"
+                      : "text-white/90 hover:bg-white/[0.08]"
+                  }`}
               >
                 <span>{opt.label}</span>
                 {status === "booked" && (
@@ -154,10 +149,7 @@ export default function Booking() {
   const [endTime, setEndTime] = useState("08:00");
   const [existingBookings, setExistingBookings] = useState<ExistingBooking[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [challengeBooking, setChallengeBooking] = useState<ExistingBooking | null>(null);
-  const [challengeSearch, setChallengeSearch] = useState("");
-  const [challengeResults, setChallengeResults] = useState<OpponentUserOption[]>([]);
-  const [challengeLoading, setChallengeLoading] = useState(false);
+
 
   const dates = Array.from({ length: 7 }, (_, i) => {
     const d = addDays(new Date(), i);
@@ -206,30 +198,7 @@ export default function Booking() {
     fetchBookings();
   }, [selectedDate]);
 
-  useEffect(() => {
-    if (!challengeBooking || !challengeSearch.trim() || !user) {
-      setChallengeResults([]);
-      return;
-    }
 
-    const run = async () => {
-      setChallengeLoading(true);
-      const queryTerm = challengeSearch.trim();
-      const { data, error } = await supabase
-        .from("users")
-        .select("id, name, reg_no, department")
-        .neq("id", user.id)
-        .or(`name.ilike.%${queryTerm}%,reg_no.ilike.%${queryTerm}%`)
-        .limit(15);
-      setChallengeLoading(false);
-      if (!error) {
-        setChallengeResults((data || []) as OpponentUserOption[]);
-      }
-    };
-
-    const timeoutId = setTimeout(run, 250);
-    return () => clearTimeout(timeoutId);
-  }, [challengeBooking, challengeSearch, user]);
 
   // Validation
   const durationMinutes = timeToMinutes(endTime) - timeToMinutes(startTime);
@@ -296,34 +265,43 @@ export default function Booking() {
     fetchBookings();
   };
 
-  const sendMatchRequest = async (booking: ExistingBooking, opponent: OpponentUserOption) => {
-    if (!user) return;
 
-    const { error } = await supabase.from("match_requests").upsert(
-      {
-        booking_id: booking.id,
-        from_user_id: user.id,
-        to_user_id: opponent.id,
-        status: "pending",
-      },
-      { onConflict: "booking_id,from_user_id,to_user_id" }
-    );
-
-    if (error) {
-      toast.error(error.message || "Failed to send captain request.");
-      return;
-    }
-
-    toast.success(`Opponent captain request sent to ${opponent.name || "player"}.`);
-    setChallengeBooking(null);
-    setChallengeSearch("");
-    fetchBookings();
-  };
 
   if (!sport) {
     return (
       <div className="min-h-screen bg-black/[0.96] text-white flex items-center justify-center">
         <p className="text-white/40">Sport not found.</p>
+      </div>
+    );
+  }
+
+  // Coming Soon for Futsal and Badminton
+  if (numSportId === 2 || numSportId === 3) {
+    return (
+      <div className="min-h-screen bg-black/[0.96] text-white">
+        <nav className="sticky top-0 z-50 border-b border-white/[0.06] bg-black/80 backdrop-blur-xl">
+          <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6">
+            <button onClick={() => navigate("/dashboard")} className="flex items-center gap-2 text-sm text-white/50 hover:text-white transition-colors group">
+              <ArrowLeft className="h-4 w-4 transition-transform group-hover:-translate-x-1" /> Dashboard
+            </button>
+            <div className="flex items-center gap-2.5 font-extrabold text-lg">
+              <GcuLogo />
+              <span className="tracking-tight text-white hidden sm:inline">GCU Sports</span>
+            </div>
+          </div>
+        </nav>
+        <div className="flex flex-col items-center justify-center py-32 px-4">
+          <div className="text-6xl mb-6">{sport.icon}</div>
+          <h1 className="text-3xl font-extrabold tracking-tight mb-2">{sport.name}</h1>
+          <p className="text-lg text-white/40 mb-8">Coming Soon</p>
+          <div className="inline-flex items-center gap-2 rounded-full border border-amber-500/20 bg-amber-500/[0.06] px-5 py-2.5">
+            <div className="h-2 w-2 rounded-full bg-amber-400 animate-pulse" />
+            <span className="text-sm font-semibold text-amber-400">We'll enable this feature soon!</span>
+          </div>
+          <button onClick={() => navigate("/dashboard")} className="mt-8 rounded-xl bg-white/[0.06] border border-white/[0.08] px-6 py-3 text-sm font-semibold text-white/60 hover:text-white hover:bg-white/[0.1] transition-all">
+            ← Back to Dashboard
+          </button>
+        </div>
       </div>
     );
   }
@@ -346,9 +324,7 @@ export default function Booking() {
             <ArrowLeft className="h-4 w-4 transition-transform group-hover:-translate-x-1" /> Dashboard
           </button>
           <div className="flex items-center gap-2.5 font-extrabold text-lg">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-500 text-white">
-              <Trophy className="h-5 w-5" />
-            </div>
+            <GcuLogo />
             <span className="tracking-tight text-white hidden sm:inline">GCU Sports</span>
           </div>
         </div>
@@ -374,11 +350,10 @@ export default function Booking() {
               <button
                 key={d.value}
                 onClick={() => setSelectedDate(d.value)}
-                className={`flex-shrink-0 rounded-xl px-4 py-2.5 text-sm font-semibold transition-all duration-200 border ${
-                  selectedDate === d.value
-                    ? "bg-emerald-500 text-white border-emerald-500 shadow-lg shadow-emerald-500/20"
-                    : "bg-white/[0.03] text-white/60 border-white/[0.06] hover:bg-white/[0.06] hover:text-white"
-                }`}
+                className={`flex-shrink-0 rounded-xl px-4 py-2.5 text-sm font-semibold transition-all duration-200 border ${selectedDate === d.value
+                  ? "bg-emerald-500 text-white border-emerald-500 shadow-lg shadow-emerald-500/20"
+                  : "bg-white/[0.03] text-white/60 border-white/[0.06] hover:bg-white/[0.06] hover:text-white"
+                  }`}
               >
                 {d.label}
               </button>
@@ -497,22 +472,14 @@ export default function Booking() {
                       Booked by <span className="font-semibold text-white/60">{b.booked_by_name || "GCU Sports player"}</span>
                     </div>
                     {b.user_id === user?.id && b.sport_id === 1 && (
-                      <div className="mt-3 flex flex-wrap gap-2">
+                      <div className="mt-3">
                         <Button
                           size="sm"
                           variant="outline"
-                          className="rounded-xl border-blue-500/20 bg-transparent text-blue-400 hover:border-blue-500/30 hover:bg-blue-500/10 hover:text-blue-300"
-                          onClick={() => navigate(`/booking-team/${b.id}`)}
+                          className="rounded-xl border-emerald-500/20 bg-transparent text-emerald-400 hover:border-emerald-500/30 hover:bg-emerald-500/10 hover:text-emerald-300"
+                          onClick={() => navigate(`/match-setup/${b.id}`)}
                         >
-                          <Users className="mr-1 h-3.5 w-3.5" /> Add Players
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="rounded-xl border-purple-500/20 bg-transparent text-purple-400 hover:border-purple-500/30 hover:bg-purple-500/10 hover:text-purple-300"
-                          onClick={() => setChallengeBooking(b)}
-                        >
-                          Select Opponent Captain
+                          <Swords className="mr-1 h-3.5 w-3.5" /> Setup Match
                         </Button>
                       </div>
                     )}
@@ -524,69 +491,7 @@ export default function Booking() {
         )}
       </main>
 
-      {challengeBooking && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setChallengeBooking(null)} />
-          <div className="relative w-full max-w-xl rounded-2xl border border-white/[0.08] bg-black/95 p-6 shadow-2xl">
-            <div className="mb-5 flex items-center justify-between">
-              <div>
-                <h2 className="text-xl font-extrabold text-white">Select Opponent Captain</h2>
-                <p className="mt-1 text-sm text-white/40">
-                  Booking #{challengeBooking.id} • {formatTime(challengeBooking.start_time)} – {formatTime(challengeBooking.end_time)}
-                </p>
-              </div>
-              <button
-                onClick={() => setChallengeBooking(null)}
-                className="flex h-9 w-9 items-center justify-center rounded-xl text-white/40 transition-colors hover:bg-white/[0.06] hover:text-white"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
 
-            <div className="relative">
-              <Search className="absolute left-3 top-3.5 h-4 w-4 text-white/30" />
-              <input
-                value={challengeSearch}
-                onChange={(event) => setChallengeSearch(event.target.value)}
-                placeholder="Search signed-up users by name or reg no"
-                className="w-full rounded-2xl border border-white/[0.08] bg-white/[0.05] py-3 pl-10 pr-4 text-sm text-white outline-none transition-colors focus:border-emerald-500/40"
-              />
-            </div>
-
-            <div className="mt-4 space-y-2">
-              {challengeSearch.trim() ? (
-                challengeLoading ? (
-                  <div className="rounded-xl border border-white/[0.06] bg-white/[0.03] px-4 py-3 text-sm text-white/40">
-                    Searching players...
-                  </div>
-                ) : challengeResults.length === 0 ? (
-                  <div className="rounded-xl border border-white/[0.06] bg-white/[0.03] px-4 py-3 text-sm text-white/40">
-                    No players found.
-                  </div>
-                ) : (
-                  challengeResults.map((opponent) => (
-                    <button
-                      key={opponent.id}
-                      onClick={() => sendMatchRequest(challengeBooking, opponent)}
-                      className="w-full rounded-xl border border-white/[0.06] bg-white/[0.03] px-4 py-3 text-left transition-colors hover:bg-white/[0.06]"
-                    >
-                      <div className="text-sm font-semibold text-white">{opponent.name || "Unnamed user"}</div>
-                      <div className="mt-1 text-[11px] text-white/40">
-                        {opponent.reg_no || "No reg no"}
-                        {opponent.department ? ` • ${opponent.department}` : ""}
-                      </div>
-                    </button>
-                  ))
-                )
-              ) : (
-                <div className="rounded-xl border border-dashed border-white/[0.08] bg-white/[0.02] px-4 py-5 text-sm text-white/35">
-                  Search the player who should captain the opponent team. They will receive a request on their dashboard.
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

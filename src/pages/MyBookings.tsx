@@ -8,6 +8,7 @@ import { GlowingEffect } from "@/components/ui/glowing-effect";
 import { ensureBookingMatchStarted, getBookingMatchRoute } from "@/lib/booking-match";
 import { toast } from "sonner";
 import { X, ArrowRightLeft, Clock, CalendarCheck, Trophy, ArrowLeft, AlertTriangle, Gamepad2, Eye, Gamepad, Search, Users, Swords } from "lucide-react";
+import GcuLogo from "@/components/GcuLogo";
 import { format, addDays } from "date-fns";
 
 const sportNames: Record<number, { name: string; icon: string }> = {
@@ -87,11 +88,6 @@ export default function MyBookings() {
   const [bookingTeamsCount, setBookingTeamsCount] = useState<Record<number, number>>({});
   const [opponentBookingIds, setOpponentBookingIds] = useState<Set<number>>(new Set());
 
-  // Opponent challenge modal
-  const [challengeBooking, setChallengeBooking] = useState<BookingRow | null>(null);
-  const [challengeSearch, setChallengeSearch] = useState("");
-  const [challengeResults, setChallengeResults] = useState<OpponentUserOption[]>([]);
-  const [challengeLoading, setChallengeLoading] = useState(false);
 
   // Postpone modal state
   const [postponeBooking, setPostponeBooking] = useState<BookingRow | null>(null);
@@ -202,45 +198,7 @@ export default function MyBookings() {
   // Realtime subscription for bookings and match requests
   useUserBookingsRealtime(user?.id, handleRealtimeUpdate);
 
-  useEffect(() => {
-    if (!challengeBooking || !challengeSearch.trim() || !user) {
-      setChallengeResults([]);
-      return;
-    }
-    const run = async () => {
-      setChallengeLoading(true);
-      const q = challengeSearch.trim();
-      const { data, error } = await supabase
-        .from("users")
-        .select("id, name, reg_no, department")
-        .neq("id", user.id)
-        .or(`name.ilike.%${q}%,reg_no.ilike.%${q}%`)
-        .limit(15);
-      setChallengeLoading(false);
-      if (error) return;
-      setChallengeResults((data || []) as OpponentUserOption[]);
-    };
-    const t = setTimeout(run, 250);
-    return () => clearTimeout(t);
-  }, [challengeSearch, challengeBooking, user]);
 
-  const sendMatchRequest = async (booking: BookingRow, opponent: OpponentUserOption) => {
-    if (!user) return;
-    const { error } = await supabase.from("match_requests").upsert(
-      {
-        booking_id: booking.id,
-        from_user_id: user.id,
-        to_user_id: opponent.id,
-        status: "pending",
-      },
-      { onConflict: "booking_id,from_user_id,to_user_id" }
-    );
-    if (error) return toast.error(error.message || "Failed to send match request");
-    toast.success(`Match request sent to ${opponent.name || "opponent"}`);
-    setChallengeBooking(null);
-    setChallengeSearch("");
-    fetchBookings();
-  };
 
   const startMatchFromSavedTeams = async (booking: BookingRow) => {
     if (!user) return;
@@ -399,9 +357,7 @@ export default function MyBookings() {
             <ArrowLeft className="h-4 w-4 transition-transform group-hover:-translate-x-1" /> Dashboard
           </button>
           <div className="flex items-center gap-2.5 font-extrabold text-lg">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-500 text-white">
-              <Trophy className="h-5 w-5" />
-            </div>
+            <GcuLogo />
             <span className="tracking-tight text-white hidden sm:inline">GCU Sports</span>
           </div>
           <div className="flex items-center gap-3">
@@ -478,36 +434,8 @@ export default function MyBookings() {
                               <Clock className="h-3.5 w-3.5" />
                               {formatTime(b.start_time)} – {formatTime(b.end_time)}
                             </div>
-                            <div className="flex gap-2">
-                              {b.sport_id === 1 && (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="flex-1 rounded-xl border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/10 hover:text-emerald-300 hover:border-emerald-500/30 transition-all duration-200 bg-transparent"
-                                  onClick={async () => {
-                                    // Find existing match for this booking (prefer one with players)
-                                    const { data: existingMatches } = await supabase
-                                      .from("matches")
-                                      .select("id, status")
-                                      .eq("booking_id", b.id)
-                                      .order("created_at", { ascending: false });
-                                    
-                                    let target = null;
-                                    if (existingMatches && existingMatches.length > 0) {
-                                      // Pick the first one (most recent)
-                                      target = existingMatches[0];
-                                    }
-                                    
-                                    if (target) {
-                                      navigate(getBookingMatchRoute(target.id, target.status));
-                                    } else {
-                                      navigate(`/create-match/${b.id}`);
-                                    }
-                                  }}
-                                >
-                                  <Gamepad2 className="h-3.5 w-3.5 mr-1" /> Match
-                                </Button>
-                              )}
+                            <div className="flex flex-wrap gap-2">
+
                               {b.sport_id === 1 && (
                                 <Button
                                   size="sm"
@@ -518,26 +446,7 @@ export default function MyBookings() {
                                   <Swords className="h-3.5 w-3.5 mr-1" /> Match Lobby
                                 </Button>
                               )}
-                              {b.sport_id === 1 && (b.user_id === user?.id || opponentBookingIds.has(b.id)) && (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="flex-1 rounded-xl border-blue-500/20 text-blue-400 hover:bg-blue-500/10 hover:text-blue-300 hover:border-blue-500/30 transition-all duration-200 bg-transparent"
-                                  onClick={() => navigate(`/booking-team/${b.id}`)}
-                                >
-                                  <Users className="h-3.5 w-3.5 mr-1" /> Add Players
-                                </Button>
-                              )}
-                              {b.sport_id === 1 && b.user_id === user?.id && (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="flex-1 rounded-xl border-purple-500/20 text-purple-400 hover:bg-purple-500/10 hover:text-purple-300 hover:border-purple-500/30 transition-all duration-200 bg-transparent"
-                                  onClick={() => setChallengeBooking(b)}
-                                >
-                                  Choose Opponent Captain
-                                </Button>
-                              )}
+
                               {b.sport_id === 1 && b.user_id === user?.id && (bookingTeamsCount[b.id] || 0) >= 2 && (
                                 <Button
                                   size="sm"
@@ -789,44 +698,7 @@ export default function MyBookings() {
         </div>
       )}
 
-      {/* Opponent challenge modal */}
-      {challengeBooking && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setChallengeBooking(null)} />
-          <div className="relative w-full max-w-lg rounded-2xl border border-white/[0.08] bg-black/90 p-6">
-            <h3 className="text-lg font-bold text-white">Choose captain of opponent team</h3>
-            <p className="text-xs text-white/40 mt-1">Search signed-up users by name/reg no. Department will be shown.</p>
-            <div className="relative mt-4">
-              <Search className="absolute left-3 top-3.5 h-4 w-4 text-white/30" />
-              <input
-                value={challengeSearch}
-                onChange={(e) => setChallengeSearch(e.target.value)}
-                placeholder="Search users..."
-                className="w-full rounded-xl border border-white/[0.08] bg-white/[0.05] py-3 pl-10 pr-3 text-sm text-white"
-              />
-            </div>
-            <div className="mt-3 max-h-72 overflow-y-auto space-y-2">
-              {challengeLoading ? (
-                <p className="text-xs text-white/40">Searching...</p>
-              ) : challengeResults.length === 0 ? (
-                <p className="text-xs text-white/40">No users found.</p>
-              ) : (
-                challengeResults.map((u) => (
-                  <button
-                    key={u.id}
-                    onClick={() => sendMatchRequest(challengeBooking, u)}
-                    className="w-full rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-left hover:bg-white/[0.06]"
-                  >
-                    <div className="text-sm text-white">{u.name || "Unnamed user"}</div>
-                    <div className="text-[11px] text-white/35">{u.reg_no || "No reg"} {u.department ? `• ${u.department}` : ""}</div>
-                  </button>
-                ))
-              )}
-            </div>
-            <button onClick={() => setChallengeBooking(null)} className="mt-4 text-xs text-white/50 hover:text-white">Close</button>
-          </div>
-        </div>
-      )}
+
     </div>
   );
 }

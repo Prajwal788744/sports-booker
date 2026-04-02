@@ -55,6 +55,10 @@ export function RealtimeNotificationListener({
         async (payload) => {
           const notification = payload.new as RealtimeNotification;
 
+          // Skip floating toast for team_assignment — Dashboard already shows these
+          // in its dedicated "Team Notifications" section
+          if (notification.type === "team_assignment") return;
+
           // Get actor name if available
           let actorName: string | null = null;
           if ((payload.new as any).actor_user_id) {

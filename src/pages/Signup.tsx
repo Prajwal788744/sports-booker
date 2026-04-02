@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Link, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { Trophy, Eye, EyeOff } from "lucide-react";
+import GcuLogo from "@/components/GcuLogo";
 import { CanvasRevealEffect } from "@/components/ui/sign-in-flow-1";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
@@ -124,9 +125,7 @@ export default function Signup() {
       <div className="relative z-10 flex flex-col flex-1">
         <header className="flex items-center justify-between px-6 py-4">
           <Link to="/" className="flex items-center gap-2 group">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-500 text-white transition-transform duration-200 group-hover:scale-110">
-              <Trophy className="h-5 w-5" />
-            </div>
+            <GcuLogo />
             <span className="text-white font-bold tracking-tight text-lg">GCU Sports</span>
           </Link>
         </header>
@@ -145,8 +144,8 @@ export default function Signup() {
                 >
                   <div className="space-y-2">
                     <div className="flex justify-center mb-4">
-                      <div className="h-16 w-16 rounded-2xl bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center shadow-lg shadow-emerald-500/25">
-                        <Trophy className="h-8 w-8 text-white" />
+                      <div className="h-16 w-16 rounded-2xl bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center shadow-lg shadow-emerald-500/25 overflow-hidden">
+                        <img src="/gcu-logo.png" alt="GCU" className="h-full w-full object-cover" />
                       </div>
                     </div>
                     <h1 className="text-[2rem] font-bold leading-[1.1] tracking-tight text-white">

@@ -5,6 +5,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { GlowingEffect } from "@/components/ui/glowing-effect";
 import { ArrowLeft, Trophy, Zap, Shield, Settings2 } from "lucide-react";
+import GcuLogo from "@/components/GcuLogo";
 import { toast } from "sonner";
 
 const MATCH_TYPES = [
@@ -90,9 +91,7 @@ export default function CreateMatch() {
             <ArrowLeft className="h-4 w-4 transition-transform group-hover:-translate-x-1" /> Back
           </button>
           <div className="flex items-center gap-2.5 font-extrabold text-lg">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-500 text-white">
-              <Trophy className="h-5 w-5" />
-            </div>
+            <GcuLogo />
             <span className="tracking-tight text-white hidden sm:inline">Create Match</span>
           </div>
           <div />

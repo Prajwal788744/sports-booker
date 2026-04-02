@@ -24,6 +24,9 @@ import MatchHistory from "./pages/MatchHistory";
 import Profile from "./pages/Profile";
 import BookingTeamSetup from "./pages/BookingTeamSetup";
 import MatchLobby from "./pages/MatchLobby";
+import MatchSetup from "./pages/MatchSetup";
+import OpponentTeamSetup from "./pages/OpponentTeamSetup";
+import PlayerProfile from "./pages/PlayerProfile";
 
 const queryClient = new QueryClient();
 
@@ -44,8 +47,20 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
       // Not logged in trying to access protected route
       navigate("/login", { replace: true });
     } else if (session && location.pathname === "/login") {
-      // Logged in but on login page → go to dashboard
-      navigate("/dashboard", { replace: true });
+      // Logged in but on login page → check role first, then redirect
+      const checkRoleAndRedirect = async () => {
+        const { data: profile } = await supabase
+          .from("users")
+          .select("role")
+          .eq("id", session.user.id)
+          .maybeSingle();
+        if (profile?.role === "admin") {
+          navigate("/admin", { replace: true });
+        } else {
+          navigate("/dashboard", { replace: true });
+        }
+      };
+      checkRoleAndRedirect();
     }
   }, [session, loading, location.pathname, isPublic, navigate]);
 
@@ -161,6 +176,9 @@ const App = () => (
               <Route path="/profile" element={<Profile />} />
               <Route path="/booking-team/:bookingId" element={<BookingTeamSetup />} />
               <Route path="/match-lobby/:bookingId" element={<MatchLobby />} />
+              <Route path="/match-setup/:bookingId" element={<MatchSetup />} />
+              <Route path="/opponent-team-setup/:bookingId" element={<OpponentTeamSetup />} />
+              <Route path="/player/:userId" element={<PlayerProfile />} />
               <Route path="/admin" element={<AdminPanel />} />
               <Route path="*" element={<NotFound />} />
             </Routes>

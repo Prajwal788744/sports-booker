@@ -1,5 +1,6 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { LogOut, Menu, X, Trophy, Moon, Sun, ChevronDown, LayoutDashboard, CalendarDays, User } from "lucide-react";
+import GcuLogo from "@/components/GcuLogo";
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/lib/supabase";
@@ -32,10 +33,8 @@ export function StudentNavbar() {
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6">
         {/* Logo */}
         <Link to="/dashboard" className="flex items-center gap-2.5 font-extrabold text-lg text-primary group">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground transition-transform duration-200 group-hover:scale-110 group-hover:rotate-3">
-            <Trophy className="h-5 w-5" />
-          </div>
-          <span className="hidden sm:inline tracking-tight">UniSports</span>
+          <GcuLogo />
+          <span className="hidden sm:inline tracking-tight">GCU Sports</span>
         </Link>
 
         {/* Right side: dark mode + dropdown (desktop) */}

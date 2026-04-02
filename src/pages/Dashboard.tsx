@@ -4,6 +4,7 @@ import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserRealtimeNotifications } from "@/hooks/useRealtimeSubscription";
 import { GlowingEffect } from "@/components/ui/glowing-effect";
+import GcuLogo from "@/components/GcuLogo";
 import {
   ArrowRight,
   Bell,
@@ -118,6 +119,7 @@ export default function Dashboard() {
   const [pendingMatchRequests, setPendingMatchRequests] = useState<MatchRequest[]>([]);
   const [pendingBookingRequests, setPendingBookingRequests] = useState<BookingPlayerRequest[]>([]);
   const [notifications, setNotifications] = useState<PlayerNotification[]>([]);
+  const [showRequests, setShowRequests] = useState(false);
 
   // Refetch functions for realtime updates
   const refetchMatchRequests = useCallback(async () => {
@@ -281,29 +283,9 @@ export default function Dashboard() {
 
       if (!user) return;
 
-      const [teamNameRes, matchesRes, teamJoinRes, matchReqRes, bookingSwitchRes, notificationRes] = await Promise.all([
+      const [teamNameRes, , teamJoinRes, matchReqRes, bookingSwitchRes, notificationRes] = await Promise.all([
         supabase.from("users").select("team_name").eq("id", user.id).single(),
-        // Only fetch matches where this user participated (via players → match_players)
-        (async () => {
-          // Step 1: Get user's player IDs
-          const { data: myPlayers } = await supabase.from("players").select("id").eq("user_id", user.id);
-          if (!myPlayers || myPlayers.length === 0) return { data: [], error: null };
-          const playerIds = myPlayers.map((p: { id: number }) => p.id);
-          // Step 2: Get match IDs where this user played
-          const { data: matchPlayerRows } = await supabase
-            .from("match_players")
-            .select("match_id")
-            .in("player_id", playerIds);
-          if (!matchPlayerRows || matchPlayerRows.length === 0) return { data: [], error: null };
-          const matchIds = [...new Set(matchPlayerRows.map((mp: { match_id: number }) => mp.match_id))];
-          // Step 3: Fetch only those matches
-          return supabase
-            .from("matches")
-            .select("id, team_a_name, team_b_name, winner, status, match_type, total_overs, created_at")
-            .in("id", matchIds)
-            .eq("status", "completed")
-            .order("created_at", { ascending: false });
-        })(),
+        Promise.resolve(null), // matches fetched separately below
         supabase
           .from("team_join_requests")
           .select("id, match_id, player_id, from_team, to_team, status, matches(team_a_name, team_b_name)")
@@ -334,8 +316,29 @@ export default function Dashboard() {
         setUserTeamName("");
       }
 
-      if (matchesRes.data) {
-        setMatches(matchesRes.data as MatchRecord[]);
+      // Fetch only matches the user actually participated in
+      const { data: myPlayers } = await supabase.from("players").select("id").eq("user_id", user.id);
+      const myPlayerIds = (myPlayers || []).map((p: { id: number }) => p.id);
+      if (myPlayerIds.length > 0) {
+        const { data: matchPlayerRows } = await supabase
+          .from("match_players")
+          .select("match_id")
+          .in("player_id", myPlayerIds);
+        const matchIds = [...new Set((matchPlayerRows || []).map((mp: { match_id: number }) => mp.match_id))];
+        if (matchIds.length > 0) {
+          const { data: matchesData } = await supabase
+            .from("matches")
+            .select("id, team_a_name, team_b_name, winner, status, match_type, total_overs, created_at")
+            .in("id", matchIds)
+            .eq("status", "completed")
+            .not("winner", "is", null)
+            .order("created_at", { ascending: false });
+          if (active) setMatches((matchesData || []) as MatchRecord[]);
+        } else {
+          if (active) setMatches([]);
+        }
+      } else {
+        if (active) setMatches([]);
       }
 
       if (teamJoinRes.data) {
@@ -526,7 +529,7 @@ export default function Dashboard() {
     );
 
     if (decision === "accepted") {
-      navigate(`/booking-team/${request.booking_id}`);
+      navigate(`/opponent-team-setup/${request.booking_id}`);
     }
   };
 
@@ -659,18 +662,15 @@ export default function Dashboard() {
       <nav className="sticky top-0 z-50 border-b border-white/[0.06] bg-black/80 backdrop-blur-xl">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6">
           <div className="flex items-center gap-2.5 font-extrabold text-lg">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-500 text-white">
-              <Trophy className="h-5 w-5" />
-            </div>
+            <GcuLogo />
             <span className="tracking-tight text-white">GCU Sports</span>
           </div>
           <div className="flex items-center gap-3">
             <button
-              onClick={() => {
-                const section = document.getElementById("requests-section");
-                if (section) section.scrollIntoView({ behavior: "smooth", block: "start" });
-              }}
-              className="relative flex items-center gap-1 text-sm font-medium text-amber-400/80 transition-colors hover:text-amber-400"
+              onClick={() => setShowRequests((prev) => !prev)}
+              className={`relative flex items-center gap-1 text-sm font-medium transition-colors ${
+                showRequests ? "text-amber-400" : "text-amber-400/80 hover:text-amber-400"
+              }`}
             >
               <Bell className="h-3.5 w-3.5" /> Requests
               {totalAlerts > 0 && (
@@ -718,11 +718,11 @@ export default function Dashboard() {
           <p className="mt-2 text-base text-white/40">Choose a sport and book your slot.</p>
         </div>
 
-        {(pendingBookingRequests.length > 0 ||
+        {showRequests && (pendingBookingRequests.length > 0 ||
           pendingMatchRequests.length > 0 ||
           pendingRequests.length > 0 ||
           notifications.length > 0) && (
-          <div id="requests-section" className="mb-10 space-y-6">
+          <div id="requests-section" className="mb-10 space-y-6 animate-fade-up">
             {pendingBookingRequests.length > 0 && (
               <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.06] p-5 animate-fade-up">
                 <div className="mb-3 flex items-center gap-2">

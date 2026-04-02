@@ -6,6 +6,7 @@ import { useBookingLobbyRealtime } from "@/hooks/useRealtimeSubscription";
 import { Button } from "@/components/ui/button";
 import { ensureBookingMatchStarted } from "@/lib/booking-match";
 import { ArrowLeft, CheckCircle2, Loader2, Shield, Swords, Trophy, Users } from "lucide-react";
+import GcuLogo from "@/components/GcuLogo";
 import { toast } from "sonner";
 
 interface BookingTeamRow {
@@ -139,6 +140,27 @@ export default function MatchLobby() {
     const { data: booking } = await supabase.from("bookings").select("user_id").eq("id", numBookingId).single();
     setIsOwner(booking?.user_id === user.id);
 
+    // Check if match already exists for this booking — auto-redirect if ongoing
+    const { data: existingMatch } = await supabase
+      .from("matches")
+      .select("id, status, created_by")
+      .eq("booking_id", numBookingId)
+      .in("status", ["ongoing", "not_started"])
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .single();
+
+    if (existingMatch && existingMatch.status === "ongoing") {
+      // If user is NOT the match creator, redirect to live view
+      // If user IS the creator, redirect to scoring
+      if (existingMatch.created_by === user.id) {
+        navigate(`/scoring/${existingMatch.id}`, { replace: true });
+      } else {
+        navigate(`/live/${existingMatch.id}`, { replace: true });
+      }
+      return;
+    }
+
     // If both ready, fetch players
     const owner = rows.find((t) => t.is_owner);
     const opponent = rows.find((t) => !t.is_owner);
@@ -224,9 +246,7 @@ export default function MatchLobby() {
             <ArrowLeft className="h-4 w-4 transition-transform group-hover:-translate-x-1" /> My Bookings
           </button>
           <div className="flex items-center gap-2.5 font-extrabold text-lg">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-500 text-white">
-              <Swords className="h-5 w-5" />
-            </div>
+            <GcuLogo />
             <span className="tracking-tight text-white hidden sm:inline">Match Lobby</span>
           </div>
           <div />

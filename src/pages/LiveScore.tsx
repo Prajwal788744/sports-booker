@@ -187,7 +187,7 @@ export default function LiveScore() {
 
       <nav className="sticky top-0 z-50 border-b border-white/[0.06] bg-black/80 backdrop-blur-xl">
         <div className="mx-auto flex h-14 max-w-4xl items-center justify-between px-4">
-          <button onClick={() => navigate("/matches")} className="text-sm text-white/50 hover:text-white transition-colors">
+          <button onClick={() => navigate(-1)} className="text-sm text-white/50 hover:text-white transition-colors">
             <ArrowLeft className="h-4 w-4" />
           </button>
           <div className="flex items-center gap-2">

@@ -5,6 +5,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { GlowingEffect } from "@/components/ui/glowing-effect";
 import { ArrowLeft, Trophy, Wifi, Clock, Award, Eye, Gamepad2, Circle } from "lucide-react";
+import GcuLogo from "@/components/GcuLogo";
 
 interface MatchRow {
   id: number; match_type: string; total_overs: number; status: string;
@@ -73,9 +74,7 @@ export default function MatchHistory() {
             <ArrowLeft className="h-4 w-4 transition-transform group-hover:-translate-x-1" /> Dashboard
           </button>
           <div className="flex items-center gap-2.5 font-extrabold text-lg">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-500">
-              <Trophy className="h-5 w-5" />
-            </div>
+            <GcuLogo />
             <span className="tracking-tight text-white hidden sm:inline">Matches</span>
           </div>
           <div />

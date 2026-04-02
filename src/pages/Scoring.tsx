@@ -4,7 +4,7 @@ import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/hooks/useAuth";
 import { useMatchRealtime } from "@/hooks/useRealtimeSubscription";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Trophy, Circle, ChevronRight, ChevronDown, Award, XCircle, Zap } from "lucide-react";
+import { ArrowLeft, Trophy, Circle, ChevronRight, ChevronDown, Award, XCircle, Zap, Undo2 } from "lucide-react";
 import { toast } from "sonner";
 
 interface MatchData {
@@ -64,6 +64,10 @@ export default function Scoring() {
   const [showCaughtModal, setShowCaughtModal] = useState(false);
   const [selectedFielder, setSelectedFielder] = useState<number | null>(null);
   const [catchQuality, setCatchQuality] = useState<string>("good");
+
+  // Undo state
+  const [showUndoConfirm, setShowUndoConfirm] = useState(false);
+  const [undoing, setUndoing] = useState(false);
 
   // Refs for dropdown click-outside detection
   const noBallRef = useRef<HTMLDivElement>(null);
@@ -431,6 +435,105 @@ export default function Scoring() {
 
     toast.success(`Match ended! ${winner === "tie" ? "It's a tie!" : `${teamName(winner)} wins!`}`);
     navigate(`/live/${numMatchId}`);
+  };
+
+  // ===== UNDO LAST BALL =====
+  const handleUndo = async () => {
+    if (undoing || !currentInnings) return;
+    setUndoing(true);
+
+    // Fetch the last ball event for this innings
+    const { data: lastBallArr, error: lastBallError } = await supabase
+      .from("ball_events")
+      .select("*")
+      .eq("match_id", numMatchId)
+      .eq("innings_id", currentInnings.id)
+      .order("id", { ascending: false })
+      .limit(1);
+
+    if (lastBallError || !lastBallArr || lastBallArr.length === 0) {
+      toast.error("No ball to undo.");
+      setUndoing(false);
+      setShowUndoConfirm(false);
+      return;
+    }
+
+    const lastBall = lastBallArr[0] as BallEvent;
+    const isExtra = lastBall.extra_type !== "none";
+    const isWicket = lastBall.wicket_type !== "none";
+    const validBall = lastBall.extra_type === "none" || lastBall.extra_type === "bonus";
+    const penaltyRun = isExtra ? 1 : 0;
+
+    // Revert innings stats
+    let revertedBalls = currentInnings.balls;
+    let revertedOvers = currentInnings.overs;
+    if (validBall) {
+      revertedBalls -= 1;
+      if (revertedBalls < 0) {
+        revertedOvers -= 1;
+        revertedBalls = 5;
+      }
+    }
+
+    await supabase.from("innings").update({
+      runs: currentInnings.runs - lastBall.runs - penaltyRun,
+      wickets: currentInnings.wickets - (isWicket ? 1 : 0),
+      overs: revertedOvers,
+      balls: revertedBalls,
+    }).eq("id", currentInnings.id);
+
+    // Revert batsman stats (not for wides)
+    if (lastBall.extra_type !== "wide") {
+      const batsmanStats = getStats(lastBall.batsman_id);
+      if (batsmanStats) {
+        await supabase.from("player_stats").update({
+          runs_scored: Math.max(0, batsmanStats.runs_scored - lastBall.runs),
+          balls_faced: Math.max(0, batsmanStats.balls_faced - (validBall ? 1 : (lastBall.extra_type === "no_ball" ? 1 : 0))),
+          fours: Math.max(0, batsmanStats.fours - (lastBall.runs === 4 ? 1 : 0)),
+          sixes: Math.max(0, batsmanStats.sixes - (lastBall.runs === 6 ? 1 : 0)),
+        }).eq("match_id", numMatchId).eq("player_id", lastBall.batsman_id);
+      }
+    }
+
+    // Revert bowler stats
+    const bowlerStats = getStats(lastBall.bowler_id);
+    if (bowlerStats) {
+      await supabase.from("player_stats").update({
+        runs_conceded: Math.max(0, bowlerStats.runs_conceded - lastBall.runs - penaltyRun),
+        wickets_taken: Math.max(0, bowlerStats.wickets_taken - (isWicket ? 1 : 0)),
+      }).eq("match_id", numMatchId).eq("player_id", lastBall.bowler_id);
+    }
+
+    // Delete the ball event
+    await supabase.from("ball_events").delete().eq("id", lastBall.id);
+
+    // If it was a wicket, restore the dismissed batsman
+    if (isWicket) {
+      setDismissedIds((prev) => prev.filter((id) => id !== lastBall.batsman_id));
+      setStrikerId(lastBall.batsman_id);
+      setSelectingBatsman(null);
+    }
+
+    // If the previous ball was a no_ball, restore free hit state
+    // Check the ball before the one we just undid
+    const { data: prevBallArr } = await supabase
+      .from("ball_events")
+      .select("extra_type")
+      .eq("match_id", numMatchId)
+      .eq("innings_id", currentInnings.id)
+      .order("id", { ascending: false })
+      .limit(1);
+
+    if (prevBallArr && prevBallArr.length > 0 && prevBallArr[0].extra_type === "no_ball") {
+      setIsFreeHit(true);
+    } else {
+      setIsFreeHit(false);
+    }
+
+    toast.success("Last ball undone successfully!");
+    setShowUndoConfirm(false);
+    setUndoing(false);
+    await fetchAll();
   };
 
   // COMPLETED match view
@@ -817,8 +920,50 @@ export default function Scoring() {
               </div>
             </div>
 
-            {/* End Match */}
-            <div className="pt-4 border-t border-white/[0.06]">
+            {/* Undo + End Match */}
+            <div className="pt-4 border-t border-white/[0.06] space-y-3">
+              {/* Undo Last Ball */}
+              {!showUndoConfirm ? (
+                <button
+                  onClick={() => setShowUndoConfirm(true)}
+                  disabled={balls.filter((b) => b.innings_id === currentInnings.id).length === 0}
+                  className="w-full flex items-center justify-center gap-2 text-center text-sm text-amber-400/60 hover:text-amber-400 transition-colors py-2 disabled:opacity-30 disabled:cursor-not-allowed"
+                >
+                  <Undo2 className="h-4 w-4" /> Undo Last Ball
+                </button>
+              ) : (
+                <div className="rounded-xl border border-amber-500/20 bg-amber-500/[0.05] p-4 space-y-3 animate-fade-up">
+                  <p className="text-sm text-white/60 font-semibold">Undo the last ball delivery?</p>
+                  <p className="text-xs text-white/40">This will reverse runs, stats, and any dismissal from the last ball.</p>
+                  <div className="flex gap-2">
+                    <Button
+                      onClick={handleUndo}
+                      disabled={undoing}
+                      className="flex-1 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-sm"
+                    >
+                      {undoing ? (
+                        <span className="flex items-center gap-2">
+                          <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                          Undoing...
+                        </span>
+                      ) : (
+                        <span className="flex items-center gap-1.5">
+                          <Undo2 className="h-4 w-4" /> Confirm Undo
+                        </span>
+                      )}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => setShowUndoConfirm(false)}
+                      className="rounded-xl border-white/[0.1] text-white/50 hover:text-white bg-transparent text-sm"
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* End Match */}
               {!showEndMatch ? (
                 <button
                   onClick={() => setShowEndMatch(true)}

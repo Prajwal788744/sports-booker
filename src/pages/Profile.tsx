@@ -2,7 +2,8 @@ import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/hooks/useAuth";
-import { Camera, Save, User, Hash, Users, Mail, Trophy, ArrowLeft, Gamepad2 } from "lucide-react";
+import { Camera, Save, User, Hash, Users, Mail, Trophy, ArrowLeft, Gamepad2, TrendingUp, Target, Zap, Award } from "lucide-react";
+import GcuLogo from "@/components/GcuLogo";
 import { toast } from "sonner";
 import {
   SPORT_META_BY_ID,
@@ -49,6 +50,21 @@ export default function Profile() {
   const [uploading, setUploading] = useState(false);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
 
+  // Match stats
+  const [matchStats, setMatchStats] = useState<{
+    matchesPlayed: number;
+    totalRuns: number;
+    totalBalls: number;
+    fours: number;
+    sixes: number;
+    totalWickets: number;
+    runsConceded: number;
+    ballsBowled: number;
+  }>({
+    matchesPlayed: 0, totalRuns: 0, totalBalls: 0, fours: 0, sixes: 0,
+    totalWickets: 0, runsConceded: 0, ballsBowled: 0,
+  });
+
   useEffect(() => {
     if (!user) return;
     const fetchProfile = async () => {
@@ -77,6 +93,41 @@ export default function Profile() {
       setLoading(false);
     };
     fetchProfile();
+
+    // Fetch match stats
+    const fetchStats = async () => {
+      // Find the player record for this user
+      const { data: playerRow } = await supabase
+        .from("players")
+        .select("id")
+        .eq("user_id", user.id)
+        .single();
+      if (!playerRow) return;
+
+      // Get all stats for this player across matches
+      const { data: statsRows } = await supabase
+        .from("player_stats")
+        .select("runs_scored, balls_faced, fours, sixes, wickets_taken, runs_conceded")
+        .eq("player_id", playerRow.id);
+
+      if (statsRows && statsRows.length > 0) {
+        const agg = statsRows.reduce(
+          (acc, s) => ({
+            matchesPlayed: acc.matchesPlayed + 1,
+            totalRuns: acc.totalRuns + (s.runs_scored || 0),
+            totalBalls: acc.totalBalls + (s.balls_faced || 0),
+            fours: acc.fours + (s.fours || 0),
+            sixes: acc.sixes + (s.sixes || 0),
+            totalWickets: acc.totalWickets + (s.wickets_taken || 0),
+            runsConceded: acc.runsConceded + (s.runs_conceded || 0),
+            ballsBowled: acc.ballsBowled + 0,
+          }),
+          { matchesPlayed: 0, totalRuns: 0, totalBalls: 0, fours: 0, sixes: 0, totalWickets: 0, runsConceded: 0, ballsBowled: 0 }
+        );
+        setMatchStats(agg);
+      }
+    };
+    fetchStats();
   }, [user]);
 
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -153,9 +204,7 @@ export default function Profile() {
       <nav className="sticky top-0 z-50 border-b border-white/[0.06] bg-black/80 backdrop-blur-xl">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6">
           <div className="flex items-center gap-2.5 font-extrabold text-lg">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-500 text-white">
-              <Trophy className="h-5 w-5" />
-            </div>
+            <GcuLogo />
             <span className="tracking-tight text-white">GCU Sports</span>
           </div>
           <div className="flex items-center gap-3">
@@ -289,6 +338,87 @@ export default function Profile() {
                     <p className="mt-2 text-sm font-semibold text-white">{item.value}</p>
                   </div>
                 ))}
+              </div>
+            )}
+          </div>
+
+          {/* Match Stats Section */}
+          <div className="rounded-2xl border border-white/[0.08] bg-white/[0.03] p-5">
+            <div className="flex items-start justify-between gap-4 mb-5">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.2em] text-white/40">Match Stats</p>
+                <h2 className="mt-2 text-lg font-bold text-white">🏏 Performance Summary</h2>
+              </div>
+              <div className="flex items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-xs font-bold text-emerald-400">
+                <TrendingUp className="h-3 w-3" />
+                {matchStats.matchesPlayed} Matches
+              </div>
+            </div>
+
+            {matchStats.matchesPlayed > 0 ? (
+              <>
+                {/* Overview Cards */}
+                <div className="grid grid-cols-3 gap-3 mb-5">
+                  {[
+                    { label: "Matches", value: matchStats.matchesPlayed, icon: Trophy, color: "text-emerald-400" },
+                    { label: "Runs", value: matchStats.totalRuns, icon: Zap, color: "text-blue-400" },
+                    { label: "Wickets", value: matchStats.totalWickets, icon: Target, color: "text-red-400" },
+                  ].map((stat) => (
+                    <div key={stat.label} className="rounded-xl border border-white/[0.06] bg-black/20 p-3 text-center">
+                      <stat.icon className={`mx-auto mb-1.5 h-4 w-4 ${stat.color}`} />
+                      <div className={`text-2xl font-black ${stat.color}`}>{stat.value}</div>
+                      <div className="text-[10px] font-semibold text-white/30 mt-0.5">{stat.label}</div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Batting Breakdown */}
+                <div className="rounded-xl border border-white/[0.06] bg-black/20 p-4 mb-3">
+                  <h3 className="text-[11px] font-bold uppercase tracking-[0.15em] text-emerald-400/70 mb-3 flex items-center gap-1.5">
+                    🏏 Batting
+                  </h3>
+                  <div className="grid grid-cols-2 gap-3">
+                    {[
+                      { label: "Total Runs", value: matchStats.totalRuns },
+                      { label: "Balls Faced", value: matchStats.totalBalls },
+                      { label: "Fours", value: matchStats.fours },
+                      { label: "Sixes", value: matchStats.sixes },
+                      { label: "Strike Rate", value: matchStats.totalBalls > 0 ? ((matchStats.totalRuns / matchStats.totalBalls) * 100).toFixed(1) : "0.0" },
+                      { label: "Average", value: matchStats.matchesPlayed > 0 ? (matchStats.totalRuns / matchStats.matchesPlayed).toFixed(1) : "0.0" },
+                    ].map((item) => (
+                      <div key={item.label}>
+                        <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-white/25">{item.label}</p>
+                        <p className="mt-1 text-sm font-semibold text-white">{item.value}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Bowling Breakdown */}
+                <div className="rounded-xl border border-white/[0.06] bg-black/20 p-4">
+                  <h3 className="text-[11px] font-bold uppercase tracking-[0.15em] text-red-400/70 mb-3 flex items-center gap-1.5">
+                    ⚾ Bowling
+                  </h3>
+                  <div className="grid grid-cols-2 gap-3">
+                    {[
+                      { label: "Wickets", value: matchStats.totalWickets },
+                      { label: "Runs Conceded", value: matchStats.runsConceded },
+                      { label: "Economy", value: matchStats.totalWickets > 0 ? (matchStats.runsConceded / matchStats.totalWickets).toFixed(1) : "—" },
+                      { label: "Best Bowling", value: `${matchStats.totalWickets}/${matchStats.runsConceded}` },
+                    ].map((item) => (
+                      <div key={item.label}>
+                        <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-white/25">{item.label}</p>
+                        <p className="mt-1 text-sm font-semibold text-white">{item.value}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="rounded-xl border border-dashed border-white/[0.08] bg-white/[0.02] p-6 text-center">
+                <Award className="mx-auto mb-2 h-8 w-8 text-white/15" />
+                <p className="text-sm text-white/40">No match data yet.</p>
+                <p className="text-xs text-white/25 mt-1">Play some matches to see your stats here!</p>
               </div>
             )}
           </div>

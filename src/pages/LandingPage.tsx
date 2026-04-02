@@ -5,6 +5,7 @@ import { Spotlight } from "@/components/ui/spotlight";
 import { Button } from "@/components/ui/button";
 import { GlowingEffect } from "@/components/ui/glowing-effect";
 import { SportsScene3D } from "@/components/SportsScene3D";
+import GcuLogo from "@/components/GcuLogo";
 import { Trophy, ArrowRight, Clock, Users, CalendarCheck, Zap, Shield, Star } from "lucide-react";
 
 export default function LandingPage() {
@@ -41,9 +42,7 @@ export default function LandingPage() {
       <nav className="sticky top-0 z-50 border-b bg-card/80 backdrop-blur-xl">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6">
           <div className="flex items-center gap-2.5 font-extrabold text-lg text-primary">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-              <Trophy className="h-5 w-5" />
-            </div>
+            <GcuLogo />
             <span className="tracking-tight">GCU Sports</span>
           </div>
           <div className="hidden md:flex items-center gap-8">
@@ -381,9 +380,7 @@ export default function LandingPage() {
           <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
             <div>
               <div className="flex items-center gap-2.5 font-extrabold text-lg text-primary mb-4">
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                  <Trophy className="h-4 w-4" />
-                </div>
+                <GcuLogo className="h-8 w-8" />
                 GCU Sports
               </div>
               <p className="text-sm text-muted-foreground leading-relaxed">
