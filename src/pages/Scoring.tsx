@@ -349,6 +349,22 @@ export default function Scoring() {
       });
     }
 
+    // ======== TARGET CHASE CHECK (2nd Innings) ========
+    // If chasing team has met or exceeded the target, end the match immediately
+    if (match.current_innings === 2) {
+      const inn1 = innings.find((i) => i.innings_number === 1);
+      const target = (inn1?.runs || 0) + 1;
+      if (totalRuns >= target) {
+        await supabase.from("innings").update({ status: "completed", runs: totalRuns, wickets: totalWickets, overs: newOvers, balls: newBalls }).eq("id", currentInnings.id);
+        const motmId = computeMotm();
+        await supabase.from("matches").update({ status: "completed", winner: battingTeam, man_of_match: motmId }).eq("id", numMatchId);
+        toast.success(`🏆 ${teamName(battingTeam)} wins! Target chased successfully!`);
+        await fetchAll();
+        setProcessing(false);
+        return; // Exit early — match is over
+      }
+    }
+
     // Check if innings should end
     const allOut = totalWickets >= battingPlayers.length - 1;
     const oversComplete = newOvers >= match.total_overs;
@@ -601,12 +617,20 @@ export default function Scoring() {
               <p className="text-sm text-white/50 font-semibold">{oversDisplay} overs</p>
             </div>
           </div>
-          {innings.length > 1 && match.current_innings === 2 && (
-            <div className="text-xs text-amber-400/80 bg-amber-500/10 rounded-lg px-3 py-1.5 text-center font-semibold">
-              Target: {(innings[0].runs + 1)} · Need {(innings[0].runs + 1) - currentInnings.runs} from{" "}
-              {(match.total_overs * 6) - (currentInnings.overs * 6 + currentInnings.balls)} balls
-            </div>
-          )}
+          {innings.length > 1 && match.current_innings === 2 && (() => {
+            const target = innings[0].runs + 1;
+            const needed = target - currentInnings.runs;
+            const ballsLeft = (match.total_overs * 6) - (currentInnings.overs * 6 + currentInnings.balls);
+            return (
+              <div className={`text-xs rounded-lg px-3 py-1.5 text-center font-semibold ${
+                needed <= 0 ? 'text-emerald-400/90 bg-emerald-500/10' : 'text-amber-400/80 bg-amber-500/10'
+              }`}>
+                {needed <= 0
+                  ? `🏆 ${teamName(battingTeam)} won!`
+                  : `Target: ${target} · Need ${needed} from ${ballsLeft} balls`}
+              </div>
+            );
+          })()}
         </div>
 
         {/* Current Players */}

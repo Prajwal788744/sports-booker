@@ -185,6 +185,40 @@ export default function MatchLobby() {
   // Realtime subscription for lobby state changes using enhanced hook
   useBookingLobbyRealtime(numBookingId, loadLobbyState);
 
+  // Realtime subscription for match creation — auto-redirect Team 2 to live scoring
+  useEffect(() => {
+    if (!numBookingId || !user) return;
+
+    const matchChannel = supabase
+      .channel(`lobby-match-watch-${numBookingId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "matches",
+          filter: `booking_id=eq.${numBookingId}`,
+        },
+        async (payload) => {
+          const matchRow = payload.new as any;
+          if (matchRow && matchRow.status === "ongoing") {
+            // If this user is NOT the match creator, redirect to live view
+            // If this user IS the creator, redirect to scoring
+            if (matchRow.created_by === user.id) {
+              navigate(`/scoring/${matchRow.id}`, { replace: true });
+            } else {
+              navigate(`/live/${matchRow.id}`, { replace: true });
+            }
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(matchChannel);
+    };
+  }, [numBookingId, user, navigate]);
+
   const handleGoIn = async () => {
     if (!user || !currentUserTeam) {
       toast.error("You must save your team first.");

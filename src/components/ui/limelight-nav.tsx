@@ -31,7 +31,8 @@ type LimelightNavProps = {
 };
 
 /**
- * An adaptive-width navigation bar with a "limelight" effect that highlights the active item.
+ * An adaptive-width navigation bar with a realistic "limelight" spotlight effect.
+ * Uses emerald green with layered gradients for physical light simulation.
  */
 export const LimelightNav = ({
   items = defaultNavItems,
@@ -76,7 +77,18 @@ export const LimelightNav = ({
   };
 
   return (
-    <nav className={`relative flex items-center h-16 rounded-lg px-2 w-full ${className}`}>
+    <nav className={`relative flex items-center h-16 rounded-lg px-2 w-full overflow-hidden ${className}`}>
+      {/* Surface reflection — ambient glow on the nav bar surface */}
+      <div
+        className={`absolute top-0 left-0 right-0 h-full pointer-events-none ${
+          isReady ? 'transition-opacity duration-500' : 'opacity-0'
+        }`}
+        style={{ opacity: isReady ? 1 : 0 }}
+      >
+        {/* Subtle ambient reflection on the entire nav surface */}
+        <div className="absolute inset-0 bg-gradient-to-b from-emerald-500/[0.02] to-transparent" />
+      </div>
+
       {items.map(({ id, icon, label, onClick }, index) => (
           <a
             key={id}
@@ -86,21 +98,59 @@ export const LimelightNav = ({
             aria-label={label}
           >
             {cloneElement(icon, {
-              className: `w-6 h-6 transition-opacity duration-100 ease-in-out ${
-                activeIndex === index ? 'opacity-100' : 'opacity-40'
+              className: `w-6 h-6 transition-all duration-300 ease-in-out ${
+                activeIndex === index ? 'opacity-100 drop-shadow-[0_0_6px_rgba(52,211,153,0.5)]' : 'opacity-40'
               } ${icon.props.className || ''} ${iconClassName || ''}`,
             })}
           </a>
       ))}
 
-      <div 
+      {/* === LIMELIGHT SPOTLIGHT === */}
+      <div
         ref={limelightRef}
-        className={`absolute top-0 z-10 w-11 h-[5px] rounded-full bg-primary shadow-[0_50px_15px_var(--primary)] ${
+        className={`absolute top-0 z-10 ${
           isReady ? 'transition-[left] duration-400 ease-in-out' : ''
-        } ${limelightClassName}`}
-        style={{ left: '-999px' }}
+        }`}
+        style={{ left: '-999px', width: '3rem' }}
       >
-        <div className="absolute left-[-30%] top-[5px] w-[160%] h-14 [clip-path:polygon(5%_100%,25%_0,75%_0,95%_100%)] bg-gradient-to-b from-primary/30 to-transparent pointer-events-none" />
+        {/* Main light bar — the emerald LED strip */}
+        <div className={`w-full h-[4px] rounded-full bg-emerald-400 shadow-[0_0_8px_2px_rgba(52,211,153,0.6),0_0_20px_4px_rgba(52,211,153,0.3)] ${limelightClassName}`} />
+        
+        {/* Primary light cone — narrow near source, wide at bottom */}
+        <div
+          className="absolute top-[4px] pointer-events-none"
+          style={{
+            left: '-40%',
+            width: '180%',
+            height: '60px',
+            clipPath: 'polygon(30% 0%, 70% 0%, 100% 100%, 0% 100%)',
+            background: 'linear-gradient(to bottom, rgba(52,211,153,0.25) 0%, rgba(52,211,153,0.06) 40%, transparent 100%)',
+          }}
+        />
+        
+        {/* Secondary soft glow — wider diffused light */}
+        <div
+          className="absolute top-[2px] pointer-events-none"
+          style={{
+            left: '-70%',
+            width: '240%',
+            height: '50px',
+            clipPath: 'polygon(20% 0%, 80% 0%, 100% 100%, 0% 100%)',
+            background: 'radial-gradient(ellipse at top center, rgba(52,211,153,0.12) 0%, transparent 70%)',
+          }}
+        />
+
+        {/* Surface reflection spot — the light "hitting" the bar */}
+        <div
+          className="absolute top-[4px] pointer-events-none"
+          style={{
+            left: '-10%',
+            width: '120%',
+            height: '8px',
+            background: 'radial-gradient(ellipse at center, rgba(52,211,153,0.15) 0%, transparent 70%)',
+            filter: 'blur(2px)',
+          }}
+        />
       </div>
     </nav>
   );

@@ -26,7 +26,7 @@ export default function AdminUsers() {
     // Fetch all users - query columns that definitely exist
     const { data, error } = await supabase
       .from("users")
-      .select("id, name, email, reg_no, department, role, avatar_url, created_at, preferred_sport_id")
+      .select("id, name, email, reg_no, department, role, avatar_url, created_at, preferred_sport_id, is_active")
       .order("created_at", { ascending: false });
 
     if (error) {

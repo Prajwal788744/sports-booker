@@ -86,7 +86,7 @@ export default function BottomNav() {
         items={navItems}
         activeIndex={activeIndex}
         className="w-full rounded-none border-x-0 border-b-0 border-t border-white/10 bg-[#0c0c0c]/95 backdrop-blur-xl"
-        limelightClassName="bg-emerald-400 shadow-[0_50px_15px_theme(colors.emerald.400)]"
+        limelightClassName="bg-emerald-400 shadow-[0_0_8px_2px_rgba(52,211,153,0.6),0_0_20px_4px_rgba(52,211,153,0.3)]"
         iconClassName="text-white"
       />
     </div>

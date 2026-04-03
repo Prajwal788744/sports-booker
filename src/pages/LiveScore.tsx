@@ -250,11 +250,20 @@ export default function LiveScore() {
               )}
             </div>
           )}
-          {match.status === "ongoing" && match.current_innings === 2 && inn1 && currentInnings && (
-            <div className="mt-3 text-center text-xs text-amber-400/80 bg-amber-500/10 rounded-lg px-3 py-1.5 font-semibold">
-              Target: {inn1.runs + 1} · Need {(inn1.runs + 1) - currentInnings.runs} runs
-            </div>
-          )}
+          {match.status === "ongoing" && match.current_innings === 2 && inn1 && currentInnings && (() => {
+            const target = inn1.runs + 1;
+            const needed = target - currentInnings.runs;
+            const ballsRemaining = (match.total_overs * 6) - (currentInnings.overs * 6 + currentInnings.balls);
+            return (
+              <div className={`mt-3 text-center text-xs rounded-lg px-3 py-1.5 font-semibold ${
+                needed <= 0 ? 'text-emerald-400/90 bg-emerald-500/10' : 'text-amber-400/80 bg-amber-500/10'
+              }`}>
+                {needed <= 0
+                  ? `🏆 ${teamName(currentInnings.team)} won!`
+                  : `Target: ${target} · Need ${needed} from ${ballsRemaining} balls`}
+              </div>
+            );
+          })()}
         </div>
 
         {/* FREE HIT Banner for Live Viewers */}
@@ -275,17 +284,21 @@ export default function LiveScore() {
         {lastBall && match.status === "ongoing" && (
           <div className="mb-6 animate-fade-up" style={{ animationDelay: "0.1s" }}>
             <h4 className="text-xs font-bold text-white/40 uppercase tracking-wider mb-2">Last Ball</h4>
-            <div className="flex items-center gap-3 rounded-xl bg-white/[0.03] border border-white/[0.06] px-4 py-3">
-              <div className={`h-10 w-10 rounded-full flex items-center justify-center text-sm font-black ${
+            <div className={`flex items-start gap-3 rounded-xl px-4 py-3 border ${
+              lastBall.wicket_type !== "none"
+                ? "bg-red-500/[0.06] border-red-500/20"
+                : "bg-white/[0.03] border-white/[0.06]"
+            }`}>
+              <div className={`flex-shrink-0 flex items-center justify-center text-sm font-black ${
                 lastBall.wicket_type !== "none"
-                  ? "bg-red-500/20 text-red-400 border border-red-500/30"
+                  ? "h-10 min-w-[2.75rem] px-2 rounded-lg bg-red-500/25 text-red-400 border border-red-500/40"
                   : lastBall.runs >= 4
-                  ? "bg-blue-500/20 text-blue-400 border border-blue-500/30"
-                  : "bg-white/[0.06] text-white border border-white/[0.06]"
+                  ? "h-10 w-10 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30"
+                  : "h-10 w-10 rounded-full bg-white/[0.06] text-white border border-white/[0.06]"
               }`}>
                 {lastBallText}
               </div>
-              <div className="text-xs text-white/50 flex-1">
+              <div className="text-xs text-white/50 flex-1 pt-0.5">
                 <span className="font-semibold text-white/70">{getPlayerName(lastBall.batsman_id)}</span> off{" "}
                 <span className="font-semibold text-white/70">{getPlayerName(lastBall.bowler_id)}</span>
                 <span className="text-white/30"> · Over {lastBall.over_number}.{lastBall.ball_number + 1}</span>
@@ -294,7 +307,7 @@ export default function LiveScore() {
                 )}
                 {/* Dismissal description */}
                 {getDismissalText(lastBall) && (
-                  <div className="mt-1 text-xs font-semibold text-red-400">
+                  <div className="mt-1.5 text-xs font-semibold text-red-400/90">
                     {getDismissalText(lastBall)}
                   </div>
                 )}

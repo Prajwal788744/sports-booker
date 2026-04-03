@@ -144,22 +144,24 @@ export function RealtimeMatchRequestListener({
 
           toast.custom(
             () => (
-              <div className="flex items-start gap-3 rounded-lg bg-gradient-to-r from-amber-500/10 to-orange-500/10 border border-amber-500/20 p-4 shadow-lg">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-500/20">
-                  <Swords className="h-5 w-5 text-amber-400" />
+              <div
+                className="flex items-start gap-3 rounded-xl bg-[#181818] border border-emerald-500/20 p-4 shadow-2xl shadow-black/50 cursor-pointer hover:bg-[#1e1e1e] transition-colors"
+                onClick={() => onNavigate?.("/notifications")}
+                role="button"
+                tabIndex={0}
+              >
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-500/15 border border-emerald-500/20 flex-shrink-0">
+                  <Swords className="h-5 w-5 text-emerald-400" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-white">Match Challenge!</p>
-                  <p className="text-sm text-white/70 mt-0.5">
-                    <span className="font-medium text-amber-400">{challengerName}</span> challenged
+                  <p className="font-bold text-white text-sm">⚔️ Match Challenge!</p>
+                  <p className="text-sm text-white/60 mt-0.5">
+                    <span className="font-semibold text-emerald-400">{challengerName}</span> challenged
                     you{bookingInfo ? ` for ${bookingInfo}` : ""}
                   </p>
-                  <button
-                    onClick={() => onNavigate?.("/dashboard")}
-                    className="mt-2 text-xs font-medium text-amber-400 hover:text-amber-300 transition-colors"
-                  >
+                  <p className="mt-2 text-xs font-semibold text-emerald-400/80">
                     View & Respond →
-                  </button>
+                  </p>
                 </div>
               </div>
             ),
@@ -227,22 +229,24 @@ export function RealtimeTeamInviteListener({
 
           toast.custom(
             () => (
-              <div className="flex items-start gap-3 rounded-lg bg-gradient-to-r from-blue-500/10 to-cyan-500/10 border border-blue-500/20 p-4 shadow-lg">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-500/20">
+              <div
+                className="flex items-start gap-3 rounded-xl bg-[#181818] border border-blue-500/20 p-4 shadow-2xl shadow-black/50 cursor-pointer hover:bg-[#1e1e1e] transition-colors"
+                onClick={() => onNavigate?.("/notifications")}
+                role="button"
+                tabIndex={0}
+              >
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-500/15 border border-blue-500/20 flex-shrink-0">
                   <UserPlus className="h-5 w-5 text-blue-400" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-white">Team Invite!</p>
-                  <p className="text-sm text-white/70 mt-0.5">
-                    <span className="font-medium text-blue-400">{requesterName}</span> invited you
-                    to join <span className="font-medium">{teamName}</span>
+                  <p className="font-bold text-white text-sm">🤝 Team Invite!</p>
+                  <p className="text-sm text-white/60 mt-0.5">
+                    <span className="font-semibold text-blue-400">{requesterName}</span> invited you
+                    to join <span className="font-semibold text-white/80">{teamName}</span>
                   </p>
-                  <button
-                    onClick={() => onNavigate?.("/dashboard")}
-                    className="mt-2 text-xs font-medium text-blue-400 hover:text-blue-300 transition-colors"
-                  >
+                  <p className="mt-2 text-xs font-semibold text-blue-400/80">
                     Accept or Decline →
-                  </button>
+                  </p>
                 </div>
               </div>
             ),
